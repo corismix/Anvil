@@ -614,23 +614,62 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
             .appendingPathComponent("sandbox.entitlements")
     }
 
-    nonisolated func packageManifestContent() -> String {
-        """
-        // swift-tools-version: 6.2
+    nonisolated func packageManifestContent(
+        dependencies: [ToolPackageDependencyRequest] = []
+    ) -> String {
+        var lines: [String] = [
+            "// swift-tools-version: 6.2",
+            "",
+            "import PackageDescription",
+            "",
+            "let package = Package(",
+            "    name: \"\(executableName)\"",
+            "    platforms: [.macOS(.v26)],",
+        ]
+        if !dependencies.isEmpty {
+            lines.append("    dependencies: [")
+            for dependency in dependencies {
+                lines.append(
+                    "        .package(url: \"\(dependency.package)\", from: \"\(dependency.from)\"),"
+                )
+            }
+            lines.append("    ],")
+        }
+        lines.append("    targets: [")
+        if dependencies.isEmpty {
+            lines.append("        .executableTarget(")
+            lines.append("            name: \"\(executableName)\"")
+            lines.append("        ),")
+        } else {
+            lines.append("        .executableTarget(")
+            lines.append("            name: \"\(executableName)\",")
+            lines.append("            dependencies: [")
+            for dependency in dependencies {
+                let packageName = Self.packageName(from: dependency.package)
+                lines.append(
+                    "                .product(name: \"\(dependency.product)\", package: \"\(packageName)\"),"
+                )
+            }
+            lines.append("            ],")
+            lines.append("        ),")
+        }
+        lines.append("    ],")
+        lines.append("    swiftLanguageModes: [.v5]")
+        lines.append(")")
+        return lines.joined(separator: "\n") + "\n"
+    }
 
-        import PackageDescription
-
-        let package = Package(
-            name: "\(executableName)",
-            platforms: [.macOS(.v26)],
-            targets: [
-                .executableTarget(
-                    name: "\(executableName)"
-                ),
-            ],
-            swiftLanguageModes: [.v5]
-        )
-        """
+    /// Derives the SwiftPM package identity from a dependency URL
+    /// (last path component, minus any .git suffix).
+    nonisolated static func packageName(from url: String) -> String {
+        var name = url
+            .split(separator: "/")
+            .last
+            .map(String.init) ?? url
+        if name.hasSuffix(".git") {
+            name = String(name.dropLast(4))
+        }
+        return name
     }
 
     nonisolated func fixedAppEntrySource(
