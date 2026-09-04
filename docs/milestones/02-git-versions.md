@@ -1,6 +1,10 @@
 # Milestone 2 - Git-backed versions
 
-Status: spec complete, implementation in progress.
+Status: COMPLETE. Verified by GitHub Actions run 33930498942 on `main`
+(macos-26, Xcode 26.6): build + full test suite (496 tests, serial) green
+at `029d3e1`. Implementation landed in `367d7be`; follow-ups `55f8153`
+(git client inert under swift test) and `029d3e1` (serial test step - real
+git spawns starved parallel timing suites on the shared runner).
 
 ## Goal
 
