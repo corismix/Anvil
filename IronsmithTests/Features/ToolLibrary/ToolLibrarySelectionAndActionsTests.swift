@@ -1,6 +1,5 @@
 import AnyLanguageModel
 import Foundation
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith

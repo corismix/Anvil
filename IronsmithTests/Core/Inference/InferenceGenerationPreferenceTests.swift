@@ -77,15 +77,12 @@ extension InferenceTests {
         )
         let openAI = ProviderCatalog.makeProvider(for: .openAI)!
         let gemini = ProviderCatalog.makeProvider(for: .gemini)!
-        let ironsmith = ProviderCatalog.makeProvider(for: .ironsmith)!
         try dependencies.credentialClient.saveAPIKey("openai-key", openAI.apiKeyReference!)
         try dependencies.credentialClient.saveAPIKey("gemini-key", gemini.apiKeyReference!)
-        store.providers = [openAI, gemini, ironsmith]
-        store.ironsmithSession = Self.ironsmithSession()
+        store.providers = [openAI, gemini]
         store.remoteModels = [
             Self.imageProviderTestModel(provider: openAI),
             Self.imageProviderTestModel(provider: gemini),
-            Self.imageProviderTestModel(provider: ironsmith),
         ]
 
         store.selectModel(store.remoteModels[0].selectionIdentifier)
@@ -93,9 +90,6 @@ extension InferenceTests {
 
         store.selectModel(store.remoteModels[1].selectionIdentifier)
         #expect(store.effectiveImageGenerationProvider == .gemini)
-
-        store.selectModel(store.remoteModels[2].selectionIdentifier)
-        #expect(store.effectiveImageGenerationProvider == .ironsmith)
     }
 
     @MainActor
@@ -110,12 +104,10 @@ extension InferenceTests {
         )
         let openAI = ProviderCatalog.makeProvider(for: .openAI)!
         let gemini = ProviderCatalog.makeProvider(for: .gemini)!
-        let ironsmith = ProviderCatalog.makeProvider(for: .ironsmith)!
         let anthropic = ProviderCatalog.makeProvider(for: .anthropic)!
         try dependencies.credentialClient.saveAPIKey("openai-key", openAI.apiKeyReference!)
         try dependencies.credentialClient.saveAPIKey("gemini-key", gemini.apiKeyReference!)
-        store.providers = [openAI, gemini, ironsmith, anthropic]
-        store.ironsmithSession = Self.ironsmithSession()
+        store.providers = [openAI, gemini, anthropic]
         store.openAICodexCredential = OpenAICodexCredential(accessToken: "codex-token")
         let selectedModel = Self.imageProviderTestModel(provider: anthropic)
         store.remoteModels = [selectedModel]
@@ -132,7 +124,7 @@ extension InferenceTests {
         try dependencies.credentialClient.deleteAPIKey(gemini.apiKeyReference!)
         let expected: ToolImageGenerationProvider = store.availableImageGenerationProviders.contains(
             .imagePlayground
-        ) ? .imagePlayground : .ironsmith
+        ) ? .imagePlayground : .disabled
         #expect(store.effectiveImageGenerationProvider == expected)
     }
 
@@ -148,11 +140,10 @@ extension InferenceTests {
             appleFoundationModelPreferenceStore: Self.appleFoundationModelPreferenceStore()
         )
         let gemini = ProviderCatalog.makeProvider(for: .gemini)!
-        let ironsmith = ProviderCatalog.makeProvider(for: .ironsmith)!
+        let openAI = ProviderCatalog.makeProvider(for: .openAI)!
         try dependencies.credentialClient.saveAPIKey("gemini-key", gemini.apiKeyReference!)
-        store.providers = [gemini, ironsmith]
-        store.ironsmithSession = Self.ironsmithSession()
-        let selectedModel = Self.imageProviderTestModel(provider: ironsmith)
+        store.providers = [gemini, openAI]
+        let selectedModel = Self.imageProviderTestModel(provider: openAI)
         store.remoteModels = [selectedModel]
         store.selectModel(selectedModel.selectionIdentifier)
 
@@ -165,17 +156,15 @@ extension InferenceTests {
         let store = Self.dependenciesBackedStore()
         let openAI = ProviderCatalog.makeProvider(for: .openAI)!
         let gemini = ProviderCatalog.makeProvider(for: .gemini)!
-        let ironsmith = ProviderCatalog.makeProvider(for: .ironsmith)!
         try store.dependencies.credentialClient.saveAPIKey("openai-key", openAI.apiKeyReference!)
         try store.dependencies.credentialClient.saveAPIKey("gemini-key", gemini.apiKeyReference!)
-        store.providers = [ironsmith, gemini, openAI]
-        store.ironsmithSession = Self.ironsmithSession()
+        store.providers = [gemini, openAI]
 
         var expected: [ToolImageGenerationProvider] = [.automatic, .openAI, .gemini]
         if store.availableImageGenerationProviders.contains(.imagePlayground) {
             expected.append(.imagePlayground)
         }
-        expected.append(contentsOf: [.ironsmith, .disabled])
+        expected.append(.disabled)
 
         #expect(store.availableImageGenerationProviders == expected)
     }
@@ -621,57 +610,8 @@ extension InferenceTests {
 
     @MainActor
     @Test
-    func selectedIronsmithModelUsesCodexCustomResponsesProviderWhenRequested() async throws {
-        let preferences = Self.generationPreferences()
-        preferences.codingAgentPreference = .codex
-        let accountClient = Self.accountClient()
-        let store = InferenceStore(
-            dependencies: Self.dependencies(accountClient: accountClient),
-            generationPreferences: preferences,
-            appleFoundationModelPreferenceStore: Self.appleFoundationModelPreferenceStore()
-        )
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
-        provider.baseURLString = "https://api.ironsmith.test/api/v1"
-        let model = ModelConfig(
-            identifier: "deepseek/deepseek-v4-flash",
-            displayName: "DeepSeek V4 Flash",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed,
-            contextWindowTokens: 1_048_576
-        )
-
-        store.providers = [provider]
-        store.remoteModels = [model]
-        store.selectModel(model.selectionIdentifier)
-        try await store.prepareSelectedModelForGeneration()
-
-        let context = try await store.makeSelectedAgentLanguageModelContext()
-
-        #expect(context.pipelineConfiguration.codingAgent == .codex)
-        #expect(context.codingAgentModelIdentifier == "deepseek/deepseek-v4-flash")
-        #expect(context.codingAgentModelFamily == .other)
-        #expect(context.codingAgentContextWindowTokens == 1_048_576)
-        #expect(
-            context.codexAgentAuthentication
-                == .customResponsesProvider(
-                    CodexAgentCustomResponsesProvider(
-                        configurationIdentifier: "ironsmith",
-                        sessionProviderIdentifier: "ironsmith",
-                        displayName: "Ironsmith",
-                        baseURL: URL(string: "https://api.ironsmith.test/api/v1")!,
-                        authenticationEnvironmentVariable: "IRONSMITH_CODEX_ACCESS_TOKEN",
-                        authenticationToken: "access-token"
-                    )
-                )
-        )
-    }
-
-    @MainActor
-    @Test
     func automaticCodingAgentUsesProviderModelAndLargeEditRules() {
         let openAIProvider = ProviderCatalog.makeProvider(for: .openAI)!
-        let ironsmithProvider = ProviderCatalog.makeProvider(for: .ironsmith)!
         let ollamaProvider = ProviderCatalog.makeProvider(for: .ollama)!
         let customProvider = ProviderCatalog.makeProvider(for: .customOpenAICompatible)!
         customProvider.identifier = "custom.test"
@@ -706,27 +646,24 @@ extension InferenceTests {
         }
 
         #expect(resolve("future-model", provider: openAIProvider) == .codex)
-        #expect(resolve("openai/gpt-5.4", provider: ironsmithProvider) == .codex)
-        #expect(resolve("anthropic/claude-sonnet", provider: ironsmithProvider) == .ironsmithFlame)
+        #expect(resolve("openai/gpt-5.4", provider: openAIProvider) == .codex)
         #expect(
             resolve(
-                "anthropic/claude-sonnet",
-                provider: ironsmithProvider,
+                "openai/gpt-5.4",
+                provider: openAIProvider,
                 requiresAttachmentSupport: true,
                 supportsImageInput: true
             ) == .codex
         )
         #expect(
             resolve(
-                "anthropic/claude-sonnet",
-                provider: ironsmithProvider,
+                "openai/gpt-5.4",
+                provider: openAIProvider,
                 requested: .ironsmithFlame,
                 requiresAttachmentSupport: true,
                 supportsImageInput: true
             ) == .ironsmithFlame
         )
-        #expect(resolve("anthropic/claude-sonnet", provider: ironsmithProvider, lineCount: 600) == .ironsmithFlame)
-        #expect(resolve("anthropic/claude-sonnet", provider: ironsmithProvider, lineCount: 601) == .codex)
 
         #expect(resolve("gpt-oss:20b", provider: ollamaProvider) == .codex)
         #expect(resolve("claude-local", provider: ollamaProvider) == .ironsmithFlame)

@@ -56,8 +56,6 @@ extension AgentPipelineTests {
             httpClient: httpClient,
             credentialClient: credentialClient,
             codexAuthClient: .unconfigured,
-            accountClient: .unconfigured,
-            backendConfiguration: nil,
             imagePlayground: ImagePlaygroundSheetCoordinator()
         )
 
@@ -75,8 +73,6 @@ extension AgentPipelineTests {
             httpClient: httpClient,
             credentialClient: credentialClient,
             codexAuthClient: codexAuthClient,
-            accountClient: .unconfigured,
-            backendConfiguration: nil,
             imagePlayground: ImagePlaygroundSheetCoordinator()
         )
         _ = try await codexClient.generate(.openAI, "A compact forge icon")
@@ -249,8 +245,6 @@ extension AgentPipelineTests {
                 deleteAPIKey: { _ in }
             ),
             codexAuthClient: .unconfigured,
-            accountClient: .unconfigured,
-            backendConfiguration: nil,
             imagePlayground: ImagePlaygroundSheetCoordinator()
         )
 
@@ -291,8 +285,6 @@ extension AgentPipelineTests {
                 deleteAPIKey: { _ in }
             ),
             codexAuthClient: authClient,
-            accountClient: .unconfigured,
-            backendConfiguration: nil,
             imagePlayground: ImagePlaygroundSheetCoordinator()
         )
 

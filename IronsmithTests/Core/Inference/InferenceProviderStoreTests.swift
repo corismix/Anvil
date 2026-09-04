@@ -1,6 +1,5 @@
 import AnyLanguageModel
 import Foundation
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
@@ -8,8 +7,8 @@ import Testing
 extension InferenceTests {
     @MainActor
     @Test
-    func ironsmithModelDiscoveryPreservesBackendResponseOrder() throws {
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
+    func remoteModelDiscoveryPreservesBackendResponseOrder() throws {
+        let provider = ProviderCatalog.makeProvider(for: .openAI)!
         let data = Data(
             #"{"data":[{"id":"openai/gpt-5.6-luna","displayName":"GPT-5.6 Luna","estimatedToolCredits":10},{"id":"openai/gpt-5.6-terra","displayName":"GPT-5.6 Terra","estimatedToolCredits":20},{"id":"openai/gpt-5.6-sol","displayName":"GPT-5.6 Sol","estimatedToolCredits":30}]}"#.utf8
         )
@@ -28,9 +27,9 @@ extension InferenceTests {
 
     @MainActor
     @Test
-    func ironsmithModelsPreserveBackendTierOrder() {
+    func remoteModelsPreserveBackendOrder() {
         let store = Self.dependenciesBackedStore()
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
+        let provider = ProviderCatalog.makeProvider(for: .openAI)!
         let identifiers = [
             "openai/gpt-5.6-luna",
             "openai/gpt-5.6-terra",
@@ -52,12 +51,12 @@ extension InferenceTests {
     @MainActor
     @Test
     func remoteModelDiscoveryDecodesReasoningCapabilities() throws {
-        let ironsmith = ProviderCatalog.makeProvider(for: .ironsmith)!
-        let ironsmithData = Data(
+        let openAI = ProviderCatalog.makeProvider(for: .openAI)!
+        let openAIData = Data(
             #"{"data":[{"id":"openai/gpt-5.5","displayName":"GPT-5.5","estimatedToolCredits":10,"reasoningEfforts":["low","medium","high","xhigh"]}]}"#.utf8
         )
-        let ironsmithModels = try RemoteModelClient.decodeModels(ironsmithData, for: ironsmith)
-        #expect(ironsmithModels.first?.reasoningEfforts == [.low, .medium, .high, .xhigh])
+        let openAIModels = try RemoteModelClient.decodeModels(openAIData, for: openAI)
+        #expect(openAIModels.first?.reasoningEfforts == [.low, .medium, .high, .xhigh])
 
         let anthropic = ProviderCatalog.makeProvider(for: .anthropic)!
         let anthropicData = Data(

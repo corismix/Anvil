@@ -1,103 +1,10 @@
 import AnyLanguageModel
 import Foundation
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
 
 extension ToolLibraryTests {
-    @MainActor
-    @Test
-    func downloadedAppFirstEditUsesExistingStoreAttributionAndSourceHash() throws {
-        let root = try Self.makeTemporaryDirectory()
-        defer { try? FileManager.default.removeItem(at: root) }
-        let source = "import SwiftUI\nstruct ContentView: View { var body: some View { Text(\"Original\") } }\n"
-        let tool = Tool(
-            name: "Tiny Notes",
-            executableName: "TinyNotes",
-            packageRootPath: root.path,
-            storeId: IronsmithStoreConstants.communityStoreId,
-            storeAppId: "00000000-0000-4000-8000-000000000101",
-            storeVersionId: "00000000-0000-4000-8000-000000000201",
-            storeSourceSha256: IronsmithStoreClient.sha256Hex(for: source),
-            storeRemixedFromVersionId: nil
-        )
-        let sourceURL = try tool.packageLayout.packageFileURL(for: tool.contentViewSourcePath)
-        try FileManager.default.createDirectory(
-            at: sourceURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-        let store = ToolLibraryStore()
-
-        #expect(store.isFirstEditOfDownloadedApp(tool))
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: true,
-                generatesIdentity: true,
-                hasPresentedNotice: false,
-                isConfirmedDownloadedFromAnotherUser: true
-            ) == .presentNotice
-        )
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: true,
-                generatesIdentity: true,
-                hasPresentedNotice: true,
-                isConfirmedDownloadedFromAnotherUser: true
-            ) == .generateIdentity
-        )
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: true,
-                generatesIdentity: false,
-                hasPresentedNotice: false,
-                isConfirmedDownloadedFromAnotherUser: true
-            ) == .submit
-        )
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: true,
-                generatesIdentity: true,
-                hasPresentedNotice: false,
-                isConfirmedDownloadedFromAnotherUser: false
-            ) == .submit
-        )
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: false,
-                generatesIdentity: true,
-                hasPresentedNotice: false,
-                isConfirmedDownloadedFromAnotherUser: true
-            ) == .submit
-        )
-        try (source + "// changed\n").write(
-            to: sourceURL,
-            atomically: true,
-            encoding: .utf8
-        )
-        #expect(!store.isFirstEditOfDownloadedApp(tool))
-        #expect(
-            store.remixIdentitySubmissionAction(
-                for: tool,
-                isStoreFeatureEnabled: true,
-                generatesIdentity: true,
-                hasPresentedNotice: false,
-                isConfirmedDownloadedFromAnotherUser: true
-            ) == .submit
-        )
-
-        try source.write(to: sourceURL, atomically: true, encoding: .utf8)
-        tool.generationState = .stopped
-        tool.generationMode = .edit
-        #expect(!store.isFirstEditOfDownloadedApp(tool))
-    }
-
     @MainActor
     @Test
     func toolLibraryStoreSuppressesGenerationCancellationErrors() async throws {
@@ -366,52 +273,12 @@ extension ToolLibraryTests {
 
     @MainActor
     @Test
-    func toolLibraryStoreOffersCreditPurchaseWhenIronsmithCreditsAreExhausted() async throws {
-        let container = try IronsmithModelContainerFactory.make(isRunningTests: true)
-        let context = ModelContext(container)
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
-        let model = ModelConfig(
-            identifier: "openai/gpt-5.4",
-            displayName: "GPT 5.4",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-        let inferenceStore = InferenceStore(
-            dependencies: Self.inferenceDependencies(
-                accountClient: Self.ironsmithAccountClient(balanceCredits: 0)
-            )
-        )
-        inferenceStore.providers = [provider]
-        inferenceStore.remoteModels = [model]
-        inferenceStore.selectedModelID = model.selectionIdentifier
-
-        let store = ToolLibraryStore(
-            dependencies: ToolLibraryDependencies(
-                generationClient: ToolGenerationClient { _ in
-                    Issue.record("Generation should not start without credits.")
-                    throw CancellationError()
-                },
-                runnerClient: ToolRunnerClient { _ in }
-            )
-        )
-        store.prompt = "Build a dashboard"
-
-        await store.submitPrompt(modelContext: context, inferenceStore: inferenceStore)
-
-        #expect(store.presentedErrorMessage == InferenceStoreError.insufficientIronsmithCredits.localizedDescription)
-        #expect(store.presentedErrorAction == ToolLibraryPresentedErrorAction.buyIronsmithCredits)
-        #expect(!(store.isGenerating))
-    }
-
-    @MainActor
-    @Test
     func toolLibraryStoreRewritesGenericAnyLanguageModelGenerationErrors() async throws {
         let container = try IronsmithModelContainerFactory.make(isRunningTests: true)
         let context = ModelContext(container)
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
+        let provider = ProviderCatalog.makeProvider(for: .openAI)!
         let model = ModelConfig(
-            identifier: "openai/gpt-5.4",
+            identifier: "gpt-5.4",
             displayName: "GPT 5.4",
             providerIdentifier: provider.identifier,
             source: .remote,
@@ -420,9 +287,7 @@ extension ToolLibraryTests {
         let preferences = GenerationPreferencesStore(userDefaults: try Self.makeIsolatedUserDefaults())
         preferences.codingAgentPreference = .ironsmithFlame
         let inferenceStore = InferenceStore(
-            dependencies: Self.inferenceDependencies(
-                accountClient: Self.ironsmithAccountClient(balanceCredits: 12)
-            ),
+            dependencies: Self.inferenceDependencies(),
             generationPreferences: preferences
         )
         inferenceStore.providers = [provider]
@@ -594,68 +459,6 @@ extension ToolLibraryTests {
 
         #expect(await capture.sawActiveCodex)
         #expect(store.activeCodingAgentByToolID.isEmpty)
-    }
-
-    @MainActor
-    @Test
-    func toolLibraryStoreRefreshesIronsmithCreditsAfterEachModelInvocation() async throws {
-        let container = try IronsmithModelContainerFactory.make(isRunningTests: true)
-        let context = ModelContext(container)
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
-        let model = ModelConfig(
-            identifier: "openai/gpt-5.4",
-            displayName: "GPT 5.4",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-        let preferences = GenerationPreferencesStore(userDefaults: try Self.makeIsolatedUserDefaults())
-        preferences.codingAgentPreference = .ironsmithFlame
-        let accountCapture = IronsmithAccountFetchCapture(balances: [100, 91, 84, 84])
-        let inferenceStore = InferenceStore(
-            dependencies: Self.inferenceDependencies(
-                accountClient: Self.ironsmithAccountClient(fetchCapture: accountCapture)
-            ),
-            generationPreferences: preferences
-        )
-        inferenceStore.providers = [provider]
-        inferenceStore.remoteModels = [model]
-        inferenceStore.selectedModelID = model.selectionIdentifier
-
-        let packageRoot = URL(fileURLWithPath: "/tmp/ironsmith-credit-refresh", isDirectory: true)
-        let store = ToolLibraryStore(
-            dependencies: ToolLibraryDependencies(
-                generationClient: ToolGenerationClient { request in
-                    try await request.lifecycle.prepareCreatedTool(
-                        ToolGenerationPreparedTool(
-                            name: "Credit Tool",
-                            executableName: "CreditTool",
-                            bundleIdentifier: ToolBundleIdentifier.make(executableName: "CreditTool"),
-                            settings: request.settings,
-                            packageRootURL: packageRoot
-                        ),
-                        request.prompt
-                    )
-                    await request.languageModelContext.languageModelInvoker.recordInvocationCompleted()
-                    await request.languageModelContext.languageModelInvoker.recordInvocationCompleted()
-                    return ToolGenerationResult(
-                        toolName: "Credit Tool",
-                        executableName: "CreditTool",
-                        settings: request.settings,
-                        packageRootURL: packageRoot
-                    )
-                },
-                runnerClient: ToolRunnerClient { _ in }
-            )
-        )
-        store.prompt = "Build a credit watching tool"
-
-        await store.submitPrompt(modelContext: context, inferenceStore: inferenceStore)
-
-        #expect(await accountCapture.fetchCount == 4)
-        #expect(inferenceStore.ironsmithAccountSummary?.credits.balanceCredits == 84)
-        #expect(store.presentedErrorMessage == nil)
-        #expect(!(store.isGenerating))
     }
 
     @MainActor

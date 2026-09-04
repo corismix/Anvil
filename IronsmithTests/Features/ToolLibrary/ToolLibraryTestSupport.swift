@@ -1,6 +1,5 @@
 import AnyLanguageModel
 import Foundation
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
@@ -8,16 +7,13 @@ import Testing
 struct ToolLibraryTests {}
 
 extension ToolLibraryTests {
-    static func inferenceDependencies(
-        accountClient: IronsmithAccountClient = .unconfigured
-    ) -> InferenceDependencies {
+    static func inferenceDependencies() -> InferenceDependencies {
         InferenceDependencies(
             credentialClient: CredentialClient(
                 loadAPIKey: { _ in nil },
                 saveAPIKey: { _, _ in },
                 deleteAPIKey: { _ in }
             ),
-            accountClient: accountClient,
             remoteModelClient: RemoteModelClient { _, _ in [] },
             localModelClient: LocalModelClient(
                 makeHubAPI: {
@@ -29,137 +25,6 @@ extension ToolLibraryTests {
             ollamaClient: .noOp(),
             languageModelClient: LanguageModelClient(
                 makeLanguageModel: { _, _ in ToolLibraryTestLanguageModel() }
-            )
-        )
-    }
-
-    static func ironsmithAccountClient(balanceCredits: Int) -> IronsmithAccountClient {
-        IronsmithAccountClient(
-            supabase: nil,
-            currentSession: {
-                Self.ironsmithSession()
-            },
-            validAccessToken: {
-                "access-token"
-            },
-            generationAccessToken: {
-                "access-token"
-            },
-            signInWithAppleOAuth: { _ in
-                Self.ironsmithSession()
-            },
-            signInWithEmailPassword: { _, _ in
-                Self.ironsmithSession()
-            },
-            signUpWithEmailPassword: { _, _ in
-                Self.ironsmithSession()
-            },
-            signOut: {},
-            fetchAccountSummary: {
-                IronsmithAccountSummary(
-                    user: IronsmithAccountUser(
-                        id: "00000000-0000-4000-8000-000000000001",
-                        email: "jade@example.com"
-                    ),
-                    profile: IronsmithAccountProfile(
-                        id: "00000000-0000-4000-8000-000000000001",
-                        email: "jade@example.com",
-                        displayName: "Jade",
-                        handle: "jade"
-                    ),
-                    credits: IronsmithCreditSummary(
-                        userId: "00000000-0000-4000-8000-000000000001",
-                        balanceCredits: balanceCredits
-                    ),
-                    recentLedger: []
-                )
-            },
-            updateProfile: { _ in
-                IronsmithAccountProfile(
-                    id: "00000000-0000-4000-8000-000000000001",
-                    email: "jade@example.com",
-                    displayName: nil,
-                    handle: nil
-                )
-            },
-            checkHandleAvailability: {
-                IronsmithHandleAvailability(handle: $0, available: true)
-            },
-            fetchCreditPacks: { [] },
-            createCheckoutSession: { _ in
-                throw IronsmithAccountClientError.notConfigured
-            },
-            deleteAccount: {},
-            invokeAPIData: { _, _ in
-                throw IronsmithAccountClientError.notConfigured
-            }
-        )
-    }
-
-    static func ironsmithAccountClient(fetchCapture: IronsmithAccountFetchCapture) -> IronsmithAccountClient {
-        IronsmithAccountClient(
-            supabase: nil,
-            currentSession: {
-                Self.ironsmithSession()
-            },
-            validAccessToken: {
-                "access-token"
-            },
-            generationAccessToken: {
-                "access-token"
-            },
-            signInWithAppleOAuth: { _ in
-                Self.ironsmithSession()
-            },
-            signInWithEmailPassword: { _, _ in
-                Self.ironsmithSession()
-            },
-            signUpWithEmailPassword: { _, _ in
-                Self.ironsmithSession()
-            },
-            signOut: {},
-            fetchAccountSummary: {
-                await fetchCapture.fetch()
-            },
-            updateProfile: { _ in
-                IronsmithAccountProfile(
-                    id: "00000000-0000-4000-8000-000000000001",
-                    email: "jade@example.com",
-                    displayName: nil,
-                    handle: nil
-                )
-            },
-            checkHandleAvailability: {
-                IronsmithHandleAvailability(handle: $0, available: true)
-            },
-            fetchCreditPacks: { [] },
-            createCheckoutSession: { _ in
-                throw IronsmithAccountClientError.notConfigured
-            },
-            deleteAccount: {},
-            invokeAPIData: { _, _ in
-                throw IronsmithAccountClientError.notConfigured
-            }
-        )
-    }
-
-    static func ironsmithSession() -> Session {
-        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
-        return Session(
-            accessToken: "access-token",
-            tokenType: "bearer",
-            expiresIn: 3600,
-            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
-            refreshToken: "refresh-token",
-            user: User(
-                id: userID,
-                appMetadata: [:],
-                userMetadata: [:],
-                aud: "authenticated",
-                email: "jade@example.com",
-                createdAt: Date(),
-                role: "authenticated",
-                updatedAt: Date()
             )
         )
     }
@@ -220,31 +85,6 @@ actor AppUpdateFetchCapture {
     }
 }
 
-actor IronsmithAccountFetchCapture {
-    private let balances: [Int]
-    private(set) var fetchCount = 0
-
-    init(balances: [Int]) {
-        self.balances = balances
-    }
-
-    func fetch() -> IronsmithAccountSummary {
-        let balance = balances.isEmpty ? 0 : balances[min(fetchCount, balances.count - 1)]
-        fetchCount += 1
-        return IronsmithAccountSummary(
-            user: IronsmithAccountUser(
-                id: "00000000-0000-4000-8000-000000000001",
-                email: "jade@example.com"
-            ),
-            profile: nil,
-            credits: IronsmithCreditSummary(
-                userId: "00000000-0000-4000-8000-000000000001",
-                balanceCredits: balance
-            ),
-            recentLedger: []
-        )
-    }
-}
 
 actor ToolBuildCapture {
     private(set) var builtPackageRoot: URL?

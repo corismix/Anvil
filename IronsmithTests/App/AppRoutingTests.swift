@@ -39,26 +39,10 @@ struct AppRoutingTests {
     }
 
     @Test
-    func appRouteParsesIronsmithCreditsURL() throws {
-        let url = try #require(URL(string: "com.jeidoban.ironsmith://settings/provider/ironsmith/credits"))
-
-        #expect(IronsmithAppRoute(url: url) == .settings(.buyIronsmithCredits))
-    }
-
-    @Test
     func appRouteParsesModelSelectionURL() throws {
         let url = try #require(URL(string: "com.jeidoban.ironsmith://settings/model-selection"))
 
         #expect(IronsmithAppRoute(url: url) == .settings(.modelSelection))
-    }
-
-    @Test
-    func appRouteParsesStoreURLs() throws {
-        let rootURL = try #require(URL(string: "com.jeidoban.ironsmith://store"))
-        let publishedURL = try #require(URL(string: "com.jeidoban.ironsmith://store/published"))
-
-        #expect(IronsmithAppRoute(url: rootURL) == .store(.root))
-        #expect(IronsmithAppRoute(url: publishedURL) == .store(.published))
     }
 
     @Test
@@ -97,94 +81,43 @@ struct AppRoutingTests {
 
     @MainActor
     @Test
-    func routeStoreOpensStoreAndToolLibraryRoutes() throws {
+    func routeStoreOpensToolLibraryRoutes() throws {
         let settingsCapture = SettingsWindowOpenCapture()
-        let storeCapture = SettingsWindowOpenCapture()
         let popoverCapture = SettingsWindowOpenCapture()
         let toolID = try #require(UUID(uuidString: "11111111-2222-4333-8444-555555555555"))
         let store = IronsmithRouteStore(
             openSettingsWindow: {
                 settingsCapture.open()
             },
-            openStoreWindow: {
-                storeCapture.open()
-            },
             openToolLibraryPopover: {
                 popoverCapture.open()
-            },
-            isStoreFeatureEnabled: { true }
+            }
         )
 
-        store.open(.store(.publishedApp("app-1")))
-        store.open(.toolLibrary(.publishTool(toolID)))
+        store.open(.toolLibrary(.selectTool(id: toolID, focusPrompt: true)))
 
         #expect(settingsCapture.openCount == 0)
-        #expect(storeCapture.openCount == 1)
         #expect(popoverCapture.openCount == 1)
-        #expect(store.consumeStoreRoute() == .publishedApp("app-1"))
-        #expect(store.consumeToolLibraryRoute() == .publishTool(toolID))
-        #expect(store.pendingStoreRoute == nil)
+        #expect(store.consumeToolLibraryRoute() == .selectTool(id: toolID, focusPrompt: true))
         #expect(store.pendingToolLibraryRoute == nil)
     }
 
     @MainActor
     @Test
-    func routeStoreIgnoresStoreRoutesWhenStoreFeatureIsDisabled() {
-        let storeCapture = SettingsWindowOpenCapture()
-        let store = IronsmithRouteStore(
-            openSettingsWindow: {},
-            openStoreWindow: {
-                storeCapture.open()
-            },
-            isStoreFeatureEnabled: { false }
-        )
-
-        store.open(.store(.root))
-
-        #expect(storeCapture.openCount == 0)
-        #expect(store.pendingStoreRoute == nil)
-    }
-
-    @MainActor
-    @Test
-    func routeStoreIgnoresPublishingButKeepsToolSelectionWhenStoreFeatureIsDisabled() throws {
+    func routeStoreOpensPopoverForToolSelection() throws {
         let popoverCapture = SettingsWindowOpenCapture()
         let toolID = try #require(UUID(uuidString: "11111111-2222-4333-8444-555555555555"))
         let store = IronsmithRouteStore(
             openSettingsWindow: {},
             openToolLibraryPopover: {
                 popoverCapture.open()
-            },
-            isStoreFeatureEnabled: { false }
+            }
         )
-
-        store.open(.toolLibrary(.publishTool(toolID)))
-
-        #expect(popoverCapture.openCount == 0)
-        #expect(store.pendingToolLibraryRoute == nil)
 
         store.open(.toolLibrary(.selectTool(id: toolID, focusPrompt: true)))
 
         #expect(popoverCapture.openCount == 1)
         #expect(store.consumeToolLibraryRoute() == .selectTool(id: toolID, focusPrompt: true))
-    }
-
-    @MainActor
-    @Test
-    func routeStoreReportsStoreURLHandledButDoesNotOpenWhenStoreFeatureIsDisabled() throws {
-        let storeCapture = SettingsWindowOpenCapture()
-        let store = IronsmithRouteStore(
-            openSettingsWindow: {},
-            openStoreWindow: {
-                storeCapture.open()
-            },
-            isStoreFeatureEnabled: { false }
-        )
-        let url = try #require(URL(string: "com.jeidoban.ironsmith://store"))
-
-        #expect(store.handle(url))
-        #expect(storeCapture.openCount == 0)
-        #expect(store.pendingStoreRoute == nil)
     }
 
     @MainActor

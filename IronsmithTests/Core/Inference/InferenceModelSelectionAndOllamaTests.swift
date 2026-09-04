@@ -1,7 +1,6 @@
 import AnyLanguageModel
 import Foundation
 import JSONSchema
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
@@ -71,32 +70,6 @@ extension InferenceTests {
         let context = try await store.makeSelectedAgentLanguageModelContext()
         #expect(context.pipelineConfiguration.codingAgent == .ironsmithSpark)
         #expect(context.repairStrategy == .modelSearchReplace(maxPatchBlocksPerTurn: 3))
-    }
-
-    @MainActor
-    @Test
-    func ironsmithGenerationRequiresAvailableCredits() async throws {
-        let store = Self.dependenciesBackedStore()
-        let provider = ProviderCatalog.makeProvider(for: .ironsmith)!
-        let model = ModelConfig(
-            identifier: "openai/gpt-5.4",
-            displayName: "GPT 5.4",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-        store.providers = [provider]
-        store.remoteModels = [model]
-        store.selectedModelID = model.selectionIdentifier
-        store.ironsmithSession = Self.ironsmithSession()
-        store.ironsmithAccountSummary = Self.ironsmithAccountSummary(balanceCredits: 0)
-
-        do {
-            _ = try await store.makeSelectedAgentLanguageModelContext()
-            Issue.record("Expected zero-credit Ironsmith generation to fail before model creation.")
-        } catch {
-            #expect(error.localizedDescription == "Your AI credits have run out. Buy more below, or switch to a local or API-key model to keep going.")
-        }
     }
 
     @MainActor
@@ -437,7 +410,6 @@ extension InferenceTests {
         preferences.codingAgentPreference = .codex
         let store = Self.dependenciesBackedStore(generationPreferences: preferences)
         let openAIProvider = ProviderCatalog.makeProvider(for: .openAI)!
-        let ironsmithProvider = ProviderCatalog.makeProvider(for: .ironsmith)!
         let ollamaProvider = ProviderCatalog.makeProvider(for: .ollama)!
         let customProvider = ProviderCatalog.makeProvider(for: .customOpenAICompatible)!
         customProvider.identifier = "custom.test"
@@ -455,13 +427,6 @@ extension InferenceTests {
             source: .remote,
             installState: .installed
         )
-        let ironsmithModel = ModelConfig(
-            identifier: "deepseek/deepseek-v4-flash",
-            displayName: "DeepSeek V4 Flash",
-            providerIdentifier: ironsmithProvider.identifier,
-            source: .remote,
-            installState: .installed
-        )
         let customModel = ModelConfig(
             identifier: "openai/gpt-5.4",
             displayName: "GPT 5.4",
@@ -470,15 +435,10 @@ extension InferenceTests {
             installState: .installed
         )
 
-        store.providers = [openAIProvider, ironsmithProvider, ollamaProvider, customProvider]
-        store.remoteModels = [openAIModel, ironsmithModel, ollamaModel, customModel]
+        store.providers = [openAIProvider, ollamaProvider, customProvider]
+        store.remoteModels = [openAIModel, ollamaModel, customModel]
 
         store.selectModel(openAIModel.selectionIdentifier)
-
-        #expect(store.selectedModelSupportsCodingAgentPreference(.codex))
-        #expect(preferences.codingAgentPreference == .codex)
-
-        store.selectModel(ironsmithModel.selectionIdentifier)
 
         #expect(store.selectedModelSupportsCodingAgentPreference(.codex))
         #expect(preferences.codingAgentPreference == .codex)
@@ -625,72 +585,6 @@ extension InferenceTests {
         #expect(store.selectedModel?.identifier == ModelConfig.appleFoundationIdentifier)
         #expect(selection.selectedModelID == store.selectedModelID)
         #expect(store.selectedModelFallbackMessage?.contains("first available AI model") == true)
-    }
-
-    @MainActor
-    @Test
-    func selectPreferredIronsmithModelSelectsFirstDeepSeekFlashVariant() throws {
-        let store = InferenceStore(
-            dependencies: Self.dependencies(),
-            modelSelection: Self.modelSelection()
-        )
-        let provider = try #require(ProviderCatalog.makeProvider(for: .ironsmith))
-        let firstDeepSeekFlashModel = ModelConfig(
-            identifier: "deepseek/deepseek-v4-flash-0324",
-            displayName: "DeepSeek V4 Flash 0324",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-        let deepSeekModel = ModelConfig(
-            identifier: "deepseek/deepseek-v4-flash-671b",
-            displayName: "DeepSeek V4 Flash 671B",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-
-        store.providers = [provider]
-        store.remoteModels = [
-            ModelConfig(
-                identifier: "openai/gpt-5",
-                displayName: "GPT-5",
-                providerIdentifier: provider.identifier,
-                source: .remote,
-                installState: .installed
-            ),
-            firstDeepSeekFlashModel,
-            deepSeekModel,
-        ]
-
-        #expect(store.selectPreferredIronsmithModel())
-        #expect(store.selectedModelID == firstDeepSeekFlashModel.selectionIdentifier)
-        #expect(store.modelSelection.selectedModelID == firstDeepSeekFlashModel.selectionIdentifier)
-    }
-
-    @MainActor
-    @Test
-    func selectIronsmithModelLeavesSelectionUnchangedWhenUnavailable() throws {
-        let store = InferenceStore(
-            dependencies: Self.dependencies(),
-            modelSelection: Self.modelSelection()
-        )
-        let provider = try #require(ProviderCatalog.makeProvider(for: .ironsmith))
-        let selectedModel = ModelConfig(
-            identifier: "openai/gpt-5",
-            displayName: "GPT-5",
-            providerIdentifier: provider.identifier,
-            source: .remote,
-            installState: .installed
-        )
-
-        store.providers = [provider]
-        store.remoteModels = [selectedModel]
-        store.selectModel(selectedModel.selectionIdentifier)
-
-        #expect(!store.selectPreferredIronsmithModel())
-        #expect(store.selectedModelID == selectedModel.selectionIdentifier)
-        #expect(store.modelSelection.selectedModelID == selectedModel.selectionIdentifier)
     }
 
     @MainActor

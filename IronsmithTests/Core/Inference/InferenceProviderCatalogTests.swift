@@ -1,7 +1,6 @@
 import AnyLanguageModel
 import Foundation
 import Security
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
@@ -9,50 +8,44 @@ import Testing
 extension InferenceTests {
     @Test
     func attachmentSupportFollowsCodexProviderAndManagedModelCapability() throws {
-        let ironsmith = try #require(ProviderCatalog.makeProvider(for: .ironsmith))
+        let openAI = try #require(ProviderCatalog.makeProvider(for: .openAI))
+        let anthropic = try #require(ProviderCatalog.makeProvider(for: .anthropic))
         let managedModel = ModelConfig(
-            identifier: "openai/gpt-5.6",
+            identifier: "gpt-5.6",
             displayName: "GPT-5.6",
-            providerIdentifier: ironsmith.identifier,
+            providerIdentifier: openAI.identifier,
             source: .remote,
             installState: .installed,
             supportsImageInput: true
-        )
-        let textOnlyModel = ModelConfig(
-            identifier: "deepseek/deepseek-v4-flash",
-            displayName: "DeepSeek V4 Flash",
-            providerIdentifier: ironsmith.identifier,
-            source: .remote,
-            installState: .installed
         )
 
         #expect(
             ToolAttachmentSupport.isSupported(
                 model: managedModel,
-                provider: ironsmith,
-                codingAgent: .codex
-            ))
-        #expect(
-            !ToolAttachmentSupport.isSupported(
-                model: textOnlyModel,
-                provider: ironsmith,
+                provider: openAI,
                 codingAgent: .codex
             ))
         #expect(
             !ToolAttachmentSupport.isSupported(
                 model: managedModel,
-                provider: ironsmith,
+                provider: anthropic,
+                codingAgent: .codex
+            ))
+        #expect(
+            !ToolAttachmentSupport.isSupported(
+                model: managedModel,
+                provider: openAI,
                 codingAgent: .ironsmithFlame
             ))
         #expect(
             ToolAttachmentSupport.canUseCodexAttachments(
                 model: managedModel,
-                provider: ironsmith
+                provider: openAI
             ))
         #expect(
             !ToolAttachmentSupport.canUseCodexAttachments(
-                model: textOnlyModel,
-                provider: ironsmith
+                model: managedModel,
+                provider: anthropic
             ))
         #expect(
             ToolAttachmentSupport.preferenceAfterAddingAttachments(.automatic) == .automatic
@@ -70,7 +63,6 @@ extension InferenceTests {
         let expectedOrder: [ProviderKind] = [
             .local,
             .ollama,
-            .ironsmith,
             .openAI,
             .anthropic,
             .gemini,
@@ -93,7 +85,6 @@ extension InferenceTests {
     func addableProviderChoicesUseConfiguredDisplayOrder() {
         #expect(ProviderCatalog.addableBuiltInDescriptors.map(\.kind) == [
             .ollama,
-            .ironsmith,
             .openAI,
             .anthropic,
             .gemini,
@@ -234,128 +225,6 @@ extension InferenceTests {
     }
 
     @Test
-    func ironsmithBackendConfigurationUsesSeparateAPIBaseURL() throws {
-        let configuration = try #require(IronsmithBackendConfiguration.make(environment: [
-            IronsmithBackendConfiguration.supabaseURLEnvironmentKey: "https://project.supabase.co",
-            IronsmithBackendConfiguration.publishableKeyEnvironmentKey: "sb_publishable_key",
-            IronsmithBackendConfiguration.apiBaseURLEnvironmentKey: "http://localhost:8000",
-        ]))
-
-        #expect(configuration.supabaseURL.absoluteString == "https://project.supabase.co")
-        #expect(configuration.apiBaseURL.absoluteString == "http://localhost:8000")
-        #expect(configuration.openAICompatibleBaseURL.absoluteString == "http://localhost:8000/api/v1")
-    }
-
-    @Test
-    func ironsmithBackendConfigurationReadsInfoPlistFallbacks() throws {
-        let configuration = try #require(IronsmithBackendConfiguration.make(
-            environment: [:],
-            infoValue: { key in
-                [
-                    IronsmithBackendConfiguration.supabaseURLInfoKey: "https://project.supabase.co",
-                    IronsmithBackendConfiguration.publishableKeyInfoKey: "sb_publishable_key",
-                    IronsmithBackendConfiguration.apiBaseURLInfoKey: "https://api.ironsmith.example",
-                ][key]
-            }
-        ))
-
-        #expect(configuration.supabaseURL.absoluteString == "https://project.supabase.co")
-        #expect(configuration.apiBaseURL.absoluteString == "https://api.ironsmith.example")
-    }
-
-    @Test
-    func ironsmithBackendConfigurationEnvironmentOverridesInfoPlist() throws {
-        let configuration = try #require(IronsmithBackendConfiguration.make(
-            environment: [
-                IronsmithBackendConfiguration.supabaseURLEnvironmentKey: "https://env.supabase.co",
-                IronsmithBackendConfiguration.publishableKeyEnvironmentKey: "env_publishable_key",
-                IronsmithBackendConfiguration.apiBaseURLEnvironmentKey: "https://env-api.ironsmith.example",
-            ],
-            infoValue: { key in
-                [
-                    IronsmithBackendConfiguration.supabaseURLInfoKey: "https://info.supabase.co",
-                    IronsmithBackendConfiguration.publishableKeyInfoKey: "info_publishable_key",
-                    IronsmithBackendConfiguration.apiBaseURLInfoKey: "https://info-api.ironsmith.example",
-                ][key]
-            }
-        ))
-
-        #expect(configuration.supabaseURL.absoluteString == "https://env.supabase.co")
-        #expect(configuration.publishableKey == "env_publishable_key")
-        #expect(configuration.apiBaseURL.absoluteString == "https://env-api.ironsmith.example")
-    }
-
-    @Test
-    func ironsmithBackendConfigurationRequiresAPIBaseURL() {
-        let configuration = IronsmithBackendConfiguration.make(environment: [
-            IronsmithBackendConfiguration.supabaseURLEnvironmentKey: "https://project.supabase.co",
-            IronsmithBackendConfiguration.publishableKeyEnvironmentKey: "sb_publishable_key",
-        ])
-
-        #expect(configuration == nil)
-    }
-
-    @Test
-    func ironsmithAccountNotConfiguredErrorNamesRequiredKeysOnly() {
-        let message = IronsmithAccountClientError.notConfigured.localizedDescription
-
-        #expect(message.contains("Missing configuration keys"))
-        #expect(message.contains(IronsmithBackendConfiguration.supabaseURLEnvironmentKey))
-        #expect(message.contains(IronsmithBackendConfiguration.publishableKeyEnvironmentKey))
-        #expect(message.contains(IronsmithBackendConfiguration.apiBaseURLEnvironmentKey))
-        #expect(!(message.contains("https://project.supabase.co")))
-        #expect(!(message.contains("sb_publishable_key")))
-        #expect(!(message.contains("http://localhost:8000")))
-    }
-
-    @Test
-    func ironsmithAPIRequestsUseConfiguredBaseURLAndBearerToken() throws {
-        let request = IronsmithAccountClient.makeAuthenticatedAPIRequest(
-            baseURL: try #require(URL(string: "http://localhost:8000")),
-            path: "api/v1/models",
-            method: .get,
-            accessToken: "access-token"
-        )
-
-        #expect(request.url?.absoluteString == "http://localhost:8000/api/v1/models")
-        #expect(request.httpMethod == "GET")
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
-    }
-
-    @Test
-    func ironsmithAPIRequestsAttachJSONBodyWhenProvided() throws {
-        let body = try #require(#"{"creditPackId":"tier_1"}"#.data(using: .utf8))
-        let request = IronsmithAccountClient.makeAuthenticatedAPIRequest(
-            baseURL: try #require(URL(string: "http://localhost:8000")),
-            path: "api/v1/billing/checkout-sessions",
-            method: .post,
-            accessToken: "access-token",
-            body: body
-        )
-
-        #expect(request.url?.absoluteString == "http://localhost:8000/api/v1/billing/checkout-sessions")
-        #expect(request.httpMethod == "POST")
-        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer access-token")
-        #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
-        #expect(request.httpBody == body)
-    }
-
-    @Test
-    func ironsmithAPIRequestsPreserveQueryItems() throws {
-        let request = IronsmithAccountClient.makeAuthenticatedAPIRequest(
-            baseURL: try #require(URL(string: "http://localhost:8000")),
-            path: "api/v1/account/handle-availability?handle=jade_w",
-            method: .get,
-            accessToken: "access-token"
-        )
-
-        #expect(
-            request.url?.absoluteString
-                == "http://localhost:8000/api/v1/account/handle-availability?handle=jade_w"
-        )
-    }
-
-    @Test
     func ollamaModelManagementRequestsAppendAPIPathAndAuthorization() throws {
         let pullRequest = try OllamaClient.makePullRequest(
             baseURLString: "http://localhost:11434",
@@ -447,9 +316,9 @@ extension InferenceTests {
         }
         """.data(using: .utf8)!
         let ollamaModels = try RemoteModelClient.decodeModels(ollamaData, for: ollamaProvider)
-        let ironsmithProvider = ProviderCatalog.makeProvider(for: .ironsmith)!
-        let ironsmithData = #"{"data":[{"id":"openai.gpt-5","displayName":"GPT-5","estimatedToolCredits":157,"supportsImageInput":true,"contextWindowTokens":1050000}]}"#.data(using: .utf8)!
-        let ironsmithModels = try RemoteModelClient.decodeModels(ironsmithData, for: ironsmithProvider)
+        let openAICreditProvider = ProviderCatalog.makeProvider(for: .openAI)!
+        let openAICreditData = #"{"data":[{"id":"openai.gpt-5","displayName":"GPT-5","estimatedToolCredits":157,"supportsImageInput":true,"contextWindowTokens":1050000}]}"#.data(using: .utf8)!
+        let openAICreditModels = try RemoteModelClient.decodeModels(openAICreditData, for: openAICreditProvider)
 
         #expect(openAIModels.map(\.identifier) == ["gpt-test"])
         #expect(openAIModels.first?.isRemote == true)
@@ -460,11 +329,11 @@ extension InferenceTests {
         #expect(geminiModels.first?.selectionIdentifier == "gemini::gemini-test")
         #expect(ollamaModels.map(\.identifier) == ["custom-model:latest", "gemma4:e2b"])
         #expect(ollamaModels.first?.source == .remote)
-        #expect(ironsmithModels.map(\.identifier) == ["openai.gpt-5"])
-        #expect(ironsmithModels.first?.displayName == "GPT-5")
-        #expect(ironsmithModels.first?.estimatedToolCredits == 157)
-        #expect(ironsmithModels.first?.supportsImageInput == true)
-        #expect(ironsmithModels.first?.contextWindowTokens == 1_050_000)
+        #expect(openAICreditModels.map(\.identifier) == ["openai.gpt-5"])
+        #expect(openAICreditModels.first?.displayName == "GPT-5")
+        #expect(openAICreditModels.first?.estimatedToolCredits == 157)
+        #expect(openAICreditModels.first?.supportsImageInput == true)
+        #expect(openAICreditModels.first?.contextWindowTokens == 1_050_000)
     }
 
     @MainActor

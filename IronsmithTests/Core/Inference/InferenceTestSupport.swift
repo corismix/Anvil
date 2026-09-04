@@ -1,6 +1,5 @@
 import AnyLanguageModel
 import Foundation
-import Supabase
 import SwiftData
 import Testing
 @testable import Ironsmith
@@ -80,7 +79,6 @@ extension InferenceTests {
         ollamaPullProgresses: [OllamaPullProgress] = [],
         ollamaPullResult: Result<Void, Error> = .success(()),
         ollamaDeleteResult: Result<Void, Error> = .success(()),
-        accountClient: IronsmithAccountClient = .unconfigured,
         openAICodexAuthClient: OpenAICodexAuthClient = .unconfigured
     ) -> InferenceDependencies {
         let credentialBox = CredentialBox()
@@ -96,7 +94,6 @@ extension InferenceTests {
                     credentialBox.values.removeValue(forKey: reference)
                 }
             ),
-            accountClient: accountClient,
             openAICodexAuthClient: openAICodexAuthClient,
             remoteModelClient: RemoteModelClient { provider, _ in
                 await remoteDiscoveryHook?()
@@ -151,137 +148,6 @@ extension InferenceTests {
         )
     }
 
-    static func accountClient(
-        signInBox: AppleOAuthSignInBox? = nil,
-        signInError: Error? = nil,
-        emailPasswordBox: EmailPasswordAuthBox? = nil,
-        emailPasswordError: Error? = nil,
-        signOutBox: SignOutBox? = nil,
-        deleteError: IronsmithAccountClientError? = nil,
-        fetchError: Error? = nil,
-        balanceCredits: Int = 42
-    ) -> IronsmithAccountClient {
-        IronsmithAccountClient(
-            supabase: nil,
-            currentSession: {
-                Self.ironsmithSession()
-            },
-            validAccessToken: {
-                "access-token"
-            },
-            generationAccessToken: {
-                "access-token"
-            },
-            signInWithAppleOAuth: { launchFlow in
-                let authorizationURL = URL(string: "https://auth.ironsmith.test/authorize")!
-                signInBox?.authorizationURL = authorizationURL
-                signInBox?.callbackURL = try await launchFlow(authorizationURL)
-                if let signInError {
-                    throw signInError
-                }
-                return Self.ironsmithSession()
-            },
-            signInWithEmailPassword: { email, password in
-                emailPasswordBox?.email = email
-                emailPasswordBox?.password = password
-                emailPasswordBox?.operation = .signIn
-                if let emailPasswordError {
-                    throw emailPasswordError
-                }
-                return Self.ironsmithSession()
-            },
-            signUpWithEmailPassword: { email, password in
-                emailPasswordBox?.email = email
-                emailPasswordBox?.password = password
-                emailPasswordBox?.operation = .signUp
-                if let emailPasswordError {
-                    throw emailPasswordError
-                }
-                return Self.ironsmithSession()
-            },
-            signOut: {
-                signOutBox?.didSignOut = true
-            },
-            fetchAccountSummary: {
-                if let fetchError {
-                    throw fetchError
-                }
-                return Self.ironsmithAccountSummary(balanceCredits: balanceCredits)
-            },
-            updateProfile: { _ in
-                IronsmithAccountProfile(
-                    id: "00000000-0000-4000-8000-000000000001",
-                    email: "jade@example.com",
-                    displayName: nil,
-                    handle: nil
-                )
-            },
-            checkHandleAvailability: {
-                IronsmithHandleAvailability(handle: $0, available: true)
-            },
-            fetchCreditPacks: {
-                [
-                    IronsmithCreditPack(
-                        id: "tier_1",
-                        credits: 500,
-                        amountCents: 500,
-                        currency: "usd"
-                    )
-                ]
-            },
-            createCheckoutSession: { creditPackID in
-                IronsmithCheckoutSession(
-                    id: "cs_test_\(creditPackID)",
-                    url: URL(string: "https://checkout.stripe.com/c/pay/\(creditPackID)")!
-                )
-            },
-            deleteAccount: {
-                if let deleteError {
-                    throw deleteError
-                }
-            },
-            invokeAPIData: { _, _ in
-                throw IronsmithAccountClientError.notConfigured
-            }
-        )
-    }
-
-    static func ironsmithAccountSummary(balanceCredits: Int) -> IronsmithAccountSummary {
-        IronsmithAccountSummary(
-            user: IronsmithAccountUser(
-                id: "00000000-0000-4000-8000-000000000001",
-                email: "jade@example.com"
-            ),
-            profile: nil,
-            credits: IronsmithCreditSummary(
-                userId: "00000000-0000-4000-8000-000000000001",
-                balanceCredits: balanceCredits
-            ),
-            recentLedger: []
-        )
-    }
-
-    static func ironsmithSession() -> Session {
-        let userID = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
-        return Session(
-            accessToken: "access-token",
-            tokenType: "bearer",
-            expiresIn: 3600,
-            expiresAt: Date().addingTimeInterval(3600).timeIntervalSince1970,
-            refreshToken: "refresh-token",
-            user: User(
-                id: userID,
-                appMetadata: [:],
-                userMetadata: [:],
-                aud: "authenticated",
-                email: "jade@example.com",
-                createdAt: Date(),
-                role: "authenticated",
-                updatedAt: Date()
-            )
-        )
-    }
-
     static func fakeLocalModelClient(
         downloadResult: Result<URL, Error> = .success(URL(fileURLWithPath: "/tmp/model"))
     ) -> LocalModelClient {
@@ -313,26 +179,6 @@ extension InferenceTests {
 
 final class CredentialBox {
     var values: [String: String] = [:]
-}
-
-nonisolated final class AppleOAuthSignInBox: @unchecked Sendable {
-    var authorizationURL: URL?
-    var callbackURL: URL?
-}
-
-nonisolated final class EmailPasswordAuthBox: @unchecked Sendable {
-    enum Operation: Equatable {
-        case signIn
-        case signUp
-    }
-
-    var email: String?
-    var password: String?
-    var operation: Operation?
-}
-
-final class SignOutBox: @unchecked Sendable {
-    var didSignOut = false
 }
 
 actor RemoteDiscoveryCounter {
