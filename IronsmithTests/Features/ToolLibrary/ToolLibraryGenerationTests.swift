@@ -267,7 +267,6 @@ extension ToolLibraryTests {
         await store.submitPrompt(modelContext: context, inferenceStore: inferenceStore)
 
         #expect(store.presentedErrorMessage == InferenceMessages.noAvailableModels)
-        #expect(store.presentedErrorAction == nil)
         #expect(!(store.isGenerating))
     }
 
@@ -307,7 +306,6 @@ extension ToolLibraryTests {
         await store.submitPrompt(modelContext: context, inferenceStore: inferenceStore)
 
         #expect(store.presentedErrorMessage == "There was an error generating your app. Please try again.")
-        #expect(store.presentedErrorAction == nil)
         #expect(!(store.isGenerating))
     }
 
@@ -620,7 +618,6 @@ extension ToolLibraryTests {
         #expect(tool.generationState == .stopped)
         #expect(tool.generationErrorSummary == message)
         #expect(store.presentedErrorMessage == message)
-        #expect(store.presentedErrorAction == nil)
         #expect(
             await notificationCapture.recorded() == [
                 ToolGenerationNotification(

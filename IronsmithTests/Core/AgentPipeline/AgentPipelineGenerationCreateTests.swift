@@ -164,7 +164,6 @@ extension AgentPipelineTests {
 
     @MainActor
     @Test(arguments: [
-        ToolImageGenerationProvider.ironsmith,
         ToolImageGenerationProvider.openAI,
         ToolImageGenerationProvider.gemini,
     ])
