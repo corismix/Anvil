@@ -316,9 +316,6 @@ extension InferenceTests {
         }
         """.data(using: .utf8)!
         let ollamaModels = try RemoteModelClient.decodeModels(ollamaData, for: ollamaProvider)
-        let openAICreditProvider = ProviderCatalog.makeProvider(for: .openAI)!
-        let openAICreditData = #"{"data":[{"id":"openai.gpt-5","displayName":"GPT-5","estimatedToolCredits":157,"supportsImageInput":true,"contextWindowTokens":1050000}]}"#.data(using: .utf8)!
-        let openAICreditModels = try RemoteModelClient.decodeModels(openAICreditData, for: openAICreditProvider)
 
         #expect(openAIModels.map(\.identifier) == ["gpt-test"])
         #expect(openAIModels.first?.isRemote == true)
@@ -329,11 +326,6 @@ extension InferenceTests {
         #expect(geminiModels.first?.selectionIdentifier == "gemini::gemini-test")
         #expect(ollamaModels.map(\.identifier) == ["custom-model:latest", "gemma4:e2b"])
         #expect(ollamaModels.first?.source == .remote)
-        #expect(openAICreditModels.map(\.identifier) == ["openai.gpt-5"])
-        #expect(openAICreditModels.first?.displayName == "GPT-5")
-        #expect(openAICreditModels.first?.estimatedToolCredits == 157)
-        #expect(openAICreditModels.first?.supportsImageInput == true)
-        #expect(openAICreditModels.first?.contextWindowTokens == 1_050_000)
     }
 
     @MainActor

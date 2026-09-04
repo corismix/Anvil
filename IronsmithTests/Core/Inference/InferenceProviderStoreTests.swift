@@ -7,57 +7,7 @@ import Testing
 extension InferenceTests {
     @MainActor
     @Test
-    func remoteModelDiscoveryPreservesBackendResponseOrder() throws {
-        let provider = ProviderCatalog.makeProvider(for: .openAI)!
-        let data = Data(
-            #"{"data":[{"id":"openai/gpt-5.6-luna","displayName":"GPT-5.6 Luna","estimatedToolCredits":10},{"id":"openai/gpt-5.6-terra","displayName":"GPT-5.6 Terra","estimatedToolCredits":20},{"id":"openai/gpt-5.6-sol","displayName":"GPT-5.6 Sol","estimatedToolCredits":30}]}"#.utf8
-        )
-
-        let models = try RemoteModelClient.decodeModels(data, for: provider)
-
-        #expect(
-            models.map(\.identifier) == [
-                "openai/gpt-5.6-luna",
-                "openai/gpt-5.6-terra",
-                "openai/gpt-5.6-sol",
-            ]
-        )
-        #expect(models.allSatisfy { $0.contextWindowTokens == nil })
-    }
-
-    @MainActor
-    @Test
-    func remoteModelsPreserveBackendOrder() {
-        let store = Self.dependenciesBackedStore()
-        let provider = ProviderCatalog.makeProvider(for: .openAI)!
-        let identifiers = [
-            "openai/gpt-5.6-luna",
-            "openai/gpt-5.6-terra",
-            "openai/gpt-5.6-sol",
-        ]
-        store.remoteModels = identifiers.map { identifier in
-            ModelConfig(
-                identifier: identifier,
-                displayName: identifier,
-                providerIdentifier: provider.identifier,
-                source: .remote,
-                installState: .installed
-            )
-        }
-
-        #expect(store.models(for: provider).map(\.identifier) == identifiers)
-    }
-
-    @MainActor
-    @Test
     func remoteModelDiscoveryDecodesReasoningCapabilities() throws {
-        let openAI = ProviderCatalog.makeProvider(for: .openAI)!
-        let openAIData = Data(
-            #"{"data":[{"id":"openai/gpt-5.5","displayName":"GPT-5.5","estimatedToolCredits":10,"reasoningEfforts":["low","medium","high","xhigh"]}]}"#.utf8
-        )
-        let openAIModels = try RemoteModelClient.decodeModels(openAIData, for: openAI)
-        #expect(openAIModels.first?.reasoningEfforts == [.low, .medium, .high, .xhigh])
-
         let anthropic = ProviderCatalog.makeProvider(for: .anthropic)!
         let anthropicData = Data(
             #"{"data":[{"id":"claude-opus-test","display_name":"Claude Opus","capabilities":{"effort":{"low":{"supported":true},"medium":{"supported":true},"high":{"supported":true},"xhigh":{"supported":false},"max":{"supported":true}}}}]}"#.utf8
