@@ -26,7 +26,31 @@ struct ToolGitClient: Sendable {
     var restoreVersion: @Sendable (_ packageRootURL: URL, _ sha: String) throws -> Void
     var commitCount: @Sendable (_ packageRootURL: URL) throws -> Int
 
-    nonisolated static let live = ToolGitClient(
+    /// Inert variant: reports no history and records nothing. Used under
+    /// `swift test` (ANVIL_RUNNING_TESTS=1) so unit tests never shell out
+    /// to git; ToolGitClientTests exercises `system` directly.
+    nonisolated static let disabled = ToolGitClient(
+        ensureRepository: { _ in false },
+        recordVersion: { _, _ in false },
+        history: { _, _ in [] },
+        diffFrom: { _, _ in "" },
+        restoreVersion: { _, _ in
+            throw ToolGitError.commandFailed(command: "git checkout", stderr: "git is disabled")
+        },
+        commitCount: { _ in 0 }
+    )
+
+    /// The live client used by the app: real git, except under the test
+    /// runner where it stays inert to keep unit tests fast and isolated.
+    nonisolated static var live: ToolGitClient {
+        if ProcessInfo.processInfo.environment["ANVIL_RUNNING_TESTS"] == "1" {
+            return .disabled
+        }
+        return .system
+    }
+
+    /// Real git implementation.
+    nonisolated static let system = ToolGitClient(
         ensureRepository: { packageRootURL in
             let gitDirectory = packageRootURL.appendingPathComponent(".git", isDirectory: true)
             guard !FileManager.default.fileExists(atPath: gitDirectory.path) else {
@@ -118,7 +142,7 @@ struct ToolGitClient: Sendable {
     nonisolated private static func ensureRepositoryIfNeeded(
         _ packageRootURL: URL
     ) throws -> Bool {
-        try live.ensureRepository(packageRootURL)
+        try system.ensureRepository(packageRootURL)
     }
 
     nonisolated private static func hasCommits(_ packageRootURL: URL) throws -> Bool {

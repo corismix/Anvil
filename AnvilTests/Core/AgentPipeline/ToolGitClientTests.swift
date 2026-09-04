@@ -8,7 +8,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         #expect(try client.ensureRepository(root))
         #expect(FileManager.default.fileExists(
             atPath: root.appendingPathComponent(".git", isDirectory: true).path
@@ -29,7 +29,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         try Self.write("one", to: root, name: "ContentView.swift")
 
         #expect(try client.recordVersion(root, "Initial version"))
@@ -49,7 +49,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         try Self.write("one", to: root, name: "ContentView.swift")
         #expect(try client.recordVersion(root, "Initial version"))
         try Self.write("two", to: root, name: "ContentView.swift")
@@ -68,7 +68,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         #expect(try client.history(root, 10).isEmpty)
         #expect(try client.commitCount(root) == 0)
     }
@@ -78,7 +78,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         try Self.write("original", to: root, name: "ContentView.swift")
         #expect(try client.recordVersion(root, "Initial version"))
         let history = try client.history(root, 10)
@@ -104,7 +104,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         try Self.write("before", to: root, name: "ContentView.swift")
         #expect(try client.recordVersion(root, "Initial version"))
         let sha = try #require(try client.history(root, 1).first?.sha)
@@ -120,7 +120,7 @@ struct ToolGitClientTests {
         let root = try Self.makeTemporaryPackageRoot()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let client = ToolGitClient.live
+        let client = ToolGitClient.system
         try Self.write("source", to: root, name: "ContentView.swift")
         let buildDir = root.appendingPathComponent(".build", isDirectory: true)
         try FileManager.default.createDirectory(at: buildDir, withIntermediateDirectories: true)
