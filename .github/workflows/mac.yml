@@ -26,10 +26,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .build
-          key: macos-26-build-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          key: macos-26-build-${{ github.repository }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
           restore-keys: |
-            macos-26-build-${{ hashFiles('Package.swift', 'Package.resolved') }}-
-            macos-26-build-
+            macos-26-build-${{ github.repository }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            macos-26-build-${{ github.repository }}-
 
       - name: Build app (debug, ad hoc signed)
         run: script/build.sh
