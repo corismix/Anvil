@@ -15,11 +15,6 @@ extension InferenceStore {
         return availableModels.first(where: { $0.selectionIdentifier == selectedModelID })
     }
 
-    var selectedModelUsesIronsmith: Bool {
-        guard let selectedModel else { return false }
-        return provider(for: selectedModel)?.kind == .ironsmith
-    }
-
     func clearSelectedModelFallbackMessage() {
         selectedModelFallbackMessage = nil
     }
@@ -28,36 +23,6 @@ extension InferenceStore {
         guard isAppleFoundationModelEnabled != isEnabled else { return }
         isAppleFoundationModelEnabled = isEnabled
         reconcileSelectedModel()
-    }
-
-    @discardableResult
-    func selectIronsmithModel(identifier: String) -> Bool {
-        guard let provider = providers.first(where: { $0.kind == .ironsmith }),
-            let model = remoteModels.first(where: {
-                $0.providerIdentifier == provider.identifier && $0.identifier == identifier
-            })
-        else {
-            return false
-        }
-
-        selectModel(model.selectionIdentifier)
-        return true
-    }
-
-    @discardableResult
-    func selectPreferredIronsmithModel() -> Bool {
-        guard let provider = providers.first(where: { $0.kind == .ironsmith }),
-            let model = remoteModels.first(where: {
-                guard $0.providerIdentifier == provider.identifier else { return false }
-                let searchableName = "\($0.identifier) \($0.displayName)".lowercased()
-                return searchableName.contains("deepseek") && searchableName.contains("flash")
-            })
-        else {
-            return false
-        }
-
-        selectModel(model.selectionIdentifier)
-        return true
     }
 
     func reconcileSelectedModel() {

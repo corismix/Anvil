@@ -81,14 +81,12 @@ final class IronsmithApplicationController {
     private let menuBarController: IronsmithMenuBarController?
     private let agentOutputWindowController: IronsmithAgentOutputWindowController?
     private let settingsWindowController: IronsmithSettingsWindowController?
-    private let storeWindowController: IronsmithStoreWindowController?
 
     init(codexPluginInstaller: CodexPluginInstaller = .live()) {
         let isRunningTests = IronsmithRuntimeEnvironment.isRunningTests
         let inferenceStore = InferenceStore()
         var appKitAgentOutputWindowController: IronsmithAgentOutputWindowController?
         var appKitSettingsWindowController: IronsmithSettingsWindowController?
-        var appKitStoreWindowController: IronsmithStoreWindowController?
         var appKitMenuBarController: IronsmithMenuBarController?
         let routeStore = IronsmithRouteStore(
             openAgentOutputWindow: { toolID in
@@ -97,14 +95,8 @@ final class IronsmithApplicationController {
             openSettingsWindow: {
                 appKitSettingsWindowController?.show()
             },
-            openStoreWindow: {
-                appKitStoreWindowController?.show()
-            },
             openToolLibraryPopover: {
                 appKitMenuBarController?.show()
-            },
-            isStoreFeatureEnabled: {
-                IronsmithFeatureFlags.isStoreEnabled()
             }
         )
         let commandLineToolsGate = CommandLineToolsGate()
@@ -125,7 +117,6 @@ final class IronsmithApplicationController {
         if isRunningTests {
             agentOutputWindowController = nil
             settingsWindowController = nil
-            storeWindowController = nil
             menuBarController = nil
         } else {
             let agentOutputWindowController = IronsmithAgentOutputWindowController(
@@ -140,13 +131,6 @@ final class IronsmithApplicationController {
             )
             appKitSettingsWindowController = settingsWindowController
             self.settingsWindowController = settingsWindowController
-            let storeWindowController = IronsmithStoreWindowController(
-                modelContainer: modelContainer,
-                inferenceStore: inferenceStore,
-                routeStore: routeStore
-            )
-            appKitStoreWindowController = storeWindowController
-            self.storeWindowController = storeWindowController
             let menuBarController = IronsmithMenuBarController(
                 rootView: AnyView(
                     LaunchRouterView(gate: commandLineToolsGate)
@@ -169,12 +153,6 @@ final class IronsmithApplicationController {
     func handle(_ urls: [URL]) {
         for url in urls {
             routeStore.handle(url)
-        }
-    }
-
-    func applicationDidBecomeActive() {
-        Task {
-            await inferenceStore.refreshIronsmithAccountSummaryIfNeededAfterCheckout()
         }
     }
 

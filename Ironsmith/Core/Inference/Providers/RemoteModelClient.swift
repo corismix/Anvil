@@ -8,15 +8,9 @@ extension RemoteModelClient {
     nonisolated static let discoveryTimeout: TimeInterval = 10
 
     static func live(
-        accountClient: IronsmithAccountClient = .unconfigured,
         openAICodexAuthClient: OpenAICodexAuthClient = .unconfigured
     ) -> Self {
         Self { provider, apiKey in
-            if provider.kind == .ironsmith {
-                let data = try await accountClient.invokeAPIData("api/v1/models", .get)
-                return try Self.decodeModels(data, for: provider)
-            }
-
             if provider.kind == .openAI {
                 return try await Self.discoverOpenAIModels(
                     provider: provider,
@@ -113,8 +107,6 @@ extension RemoteModelClient {
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
             case .ollama:
                 request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-            case .ironsmith:
-                break
             case nil:
                 break
             }
@@ -158,17 +150,6 @@ extension RemoteModelClient {
                 },
                 for: provider.kind
             ).map { RemoteModelEntry(identifier: $0.identifier, displayName: $0.displayName) }
-        case .ironsmith:
-            try JSONDecoder().decode(IronsmithModelsResponse.self, from: data).data.map {
-                RemoteModelEntry(
-                    identifier: $0.id,
-                    displayName: $0.displayName,
-                    estimatedToolCredits: $0.estimatedToolCredits,
-                    reasoningEfforts: $0.reasoningEfforts ?? [],
-                    supportsImageInput: $0.supportsImageInput ?? false,
-                    contextWindowTokens: $0.contextWindowTokens
-                )
-            }
         }
 
         let models = entries.map {
@@ -184,7 +165,6 @@ extension RemoteModelClient {
                 contextWindowTokens: $0.contextWindowTokens
             )
         }
-        guard provider.kind != .ironsmith else { return models }
         return models.sorted {
             $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
         }
@@ -278,7 +258,7 @@ extension RemoteModelClient {
                 || identifier.hasPrefix("o")
 
         case .customOpenAICompatible, .ironsmith, .ollama:
-            return true
+            return true  // .ironsmith is unreachable: the provider was removed; case kept for decode compatibility
 
         case .anthropic:
             return identifier.hasPrefix("claude-")
@@ -364,19 +344,6 @@ private struct OpenAIModelsResponse: Decodable {
 
 private struct OpenAIModelEntry: Decodable {
     let id: String
-}
-
-private struct IronsmithModelsResponse: Decodable {
-    let data: [IronsmithModelEntry]
-}
-
-private struct IronsmithModelEntry: Decodable {
-    let id: String
-    let displayName: String
-    let estimatedToolCredits: Int?
-    let reasoningEfforts: [ToolReasoningEffort]?
-    let supportsImageInput: Bool?
-    let contextWindowTokens: Int?
 }
 
 private struct AnthropicModelsResponse: Decodable {

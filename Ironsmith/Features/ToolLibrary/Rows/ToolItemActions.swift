@@ -10,9 +10,6 @@ struct ToolItemPresentationState {
     let isEditingDetails: Bool
     let isPreparingGeneration: Bool
     let canRevert: Bool
-    let showsStoreActions: Bool
-    let canUpdateStoreVersion: Bool
-    let hasStoreSourceChanges: Bool
     let activeCodingAgent: ToolCodingAgent?
     let canShowAgentOutput: Bool
 
@@ -29,7 +26,6 @@ struct ToolItemActions {
     let onQuit: () -> Void
     let onEditDetails: () -> Void
     let onRebuild: () -> Void
-    let onPublishToStore: () -> Void
     let onRevert: () -> Void
     let onExport: () -> Void
     let onShowInFinder: () -> Void
@@ -47,7 +43,6 @@ struct ToolItemActions {
         onQuit: {},
         onEditDetails: {},
         onRebuild: {},
-        onPublishToStore: {},
         onRevert: {},
         onExport: {},
         onShowInFinder: {},
@@ -97,12 +92,6 @@ struct ToolItemActionsMenu: View {
             .disabled(!tool.isGenerationReady || state.isBusy || isGenerating)
         Button("Rebuild App", action: actions.onRebuild)
             .disabled(!tool.isGenerationReady || state.isBusy)
-        if state.showsStoreActions {
-            Button(storePublishActionTitle, action: actions.onPublishToStore)
-                .disabled(
-                    !tool.isGenerationReady || state.isBusy || !state.hasStoreSourceChanges
-                )
-        }
         Button("Go Back to Previous Version", action: actions.onRevert)
             .disabled(!tool.isGenerationReady || !state.canRevert || state.isBusy)
         Button("Export App", action: actions.onExport)
@@ -128,10 +117,6 @@ struct ToolItemActionsMenu: View {
 
     private var launchAction: ToolItemLaunchAction {
         ToolItemLaunchAction.resolve(tool: tool, state: state)
-    }
-
-    private var storePublishActionTitle: String {
-        state.canUpdateStoreVersion ? "Update Store Version..." : "Publish to Ironsmith Store..."
     }
 
     private var canContinue: Bool {

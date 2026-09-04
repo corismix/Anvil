@@ -59,8 +59,6 @@ nonisolated struct ToolImageGenerationClient: Sendable {
             httpClient: .live,
             credentialClient: .live,
             codexAuthClient: .live(),
-            accountClient: .live,
-            backendConfiguration: .live,
             imagePlayground: imagePlayground
         )
     }
@@ -70,8 +68,6 @@ nonisolated struct ToolImageGenerationClient: Sendable {
         httpClient: ToolImageHTTPClient,
         credentialClient: CredentialClient,
         codexAuthClient: OpenAICodexAuthClient,
-        accountClient: IronsmithAccountClient,
-        backendConfiguration: IronsmithBackendConfiguration?,
         imagePlayground: ImagePlaygroundSheetCoordinator
     ) -> Self {
         Self { provider, prompt in
@@ -100,16 +96,6 @@ nonisolated struct ToolImageGenerationClient: Sendable {
                 return try await generateOpenAI(
                     prompt: prompt,
                     apiKey: apiKey,
-                    httpClient: httpClient
-                )
-            case .ironsmith:
-                guard let backendConfiguration else {
-                    throw ToolImageGenerationError.serviceNotConfigured
-                }
-                return try await generateIronsmith(
-                    prompt: prompt,
-                    configuration: backendConfiguration,
-                    accountClient: accountClient,
                     httpClient: httpClient
                 )
             case .automatic, .disabled:
@@ -226,29 +212,6 @@ nonisolated struct ToolImageGenerationClient: Sendable {
             throw ToolImageGenerationError.invalidImage
         }
         return try decodeImage(imageData)
-    }
-
-    private static func generateIronsmith(
-        prompt: String,
-        configuration: IronsmithBackendConfiguration,
-        accountClient: IronsmithAccountClient,
-        httpClient: ToolImageHTTPClient
-    ) async throws -> CGImage {
-        let token = try await accountClient.generationAccessToken()
-        let body = try JSONEncoder().encode(IronsmithImageRequest(prompt: prompt))
-        let url = configuration.apiBaseURL
-            .appendingPathComponent("api")
-            .appendingPathComponent("v1")
-            .appendingPathComponent("images")
-            .appendingPathComponent("generations")
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = body
-        request.timeoutInterval = requestTimeoutInterval
-        let data = try await perform(request, httpClient: httpClient)
-        return try decodeOpenAIImage(data)
     }
 
     private static func perform(
@@ -399,6 +362,3 @@ nonisolated private struct GeminiImageResponse: Decodable {
     }
 }
 
-nonisolated private struct IronsmithImageRequest: Encodable {
-    let prompt: String
-}

@@ -1,5 +1,3 @@
-import AuthenticationServices
-import Auth
 import Foundation
 import SwiftData
 import SwiftUI
@@ -16,19 +14,12 @@ struct ToolLibraryPopoverView: View {
     @Environment(InferenceStore.self) private var inferenceStore
     @Environment(IronsmithRouteStore.self) private var routeStore
     @Environment(MenuBarPopoverPresentationStore.self) private var menuBarPopoverPresentationStore
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @Query(sort: \Tool.updatedAt, order: .reverse) private var tools: [Tool]
     @AppStorage(IronsmithPreferenceKeys.showSandboxOverride) private var showSandboxOverride = false
-    @AppStorage(IronsmithPreferenceKeys.featureStoreEnabled) private var isStoreFeatureEnabled =
-        false
     @AppStorage(IronsmithPreferenceKeys.toolLibraryViewMode) private var viewModeRawValue =
         ToolLibraryViewMode.list.rawValue
     @AppStorage(IronsmithPreferenceKeys.toolLibrarySortOrder) private var sortOrderRawValue =
         ToolLibrarySortOrder.latest.rawValue
-    @AppStorage(IronsmithPreferenceKeys.generatesIdentityForNewRemixes) private
-        var generatesIdentityForNewRemixes = true
-    @AppStorage(IronsmithPreferenceKeys.hasPresentedRemixIdentityNotice) private
-        var hasPresentedRemixIdentityNotice = false
     #if DEBUG
         @AppStorage(IronsmithPreferenceKeys.debugAlwaysShowWelcomeOnboarding)
         private var debugAlwaysShowWelcomeOnboarding = false
@@ -38,35 +29,22 @@ struct ToolLibraryPopoverView: View {
     #endif
     let appUpdateStore: AppUpdateStore
     private let welcomeOnboardingStore: WelcomeOnboardingStore
-    private let remixMetadataClient: ToolGenerationPlanningClient
     @State private var toolLibraryStore = ToolLibraryStore()
-    @State private var storePublisher: ToolLibraryStorePublisher
     @State private var detailsEditor: ToolAppDetailsEditorStore
     @State private var toolPendingDeletion: Tool?
     @State private var hasCheckedWelcomeOnboarding = false
     @State private var isShowingWelcomeOnboarding = false
     @State private var isShowingModelPicker = false
     @State private var customCodingAgentSheet: CustomCodingAgentSheet?
-    @State private var isSigningInToIronsmith = false
     @State private var isSearchPresented = false
     @State private var isPromptExpanded = false
     @State private var searchText = ""
-    @State private var detailsEditorToolIDPendingPresentation: UUID?
-    @State private var detailsEditorPublishOriginToolID: UUID?
-    @State private var publishToolIDPendingDetailsReturn: UUID?
-    @State private var remixIdentityNoticeToolID: UUID?
-    @State private var remixIdentityHandledToolIDs: Set<UUID> = []
-    @State private var remixIdentityGeneratingToolID: UUID?
-    @State private var remixIdentityGenerationOperationID: UUID?
-    @State private var remixIdentityGenerationTask: Task<Void, Never>?
     @FocusState private var isPromptFocused: Bool
 
     @MainActor
     init() {
         appUpdateStore = AppUpdateStore()
         welcomeOnboardingStore = WelcomeOnboardingStore()
-        remixMetadataClient = .live()
-        _storePublisher = State(initialValue: ToolLibraryStorePublisher())
         _detailsEditor = State(initialValue: ToolAppDetailsEditorStore())
     }
 
@@ -74,23 +52,13 @@ struct ToolLibraryPopoverView: View {
     init(
         appUpdateStore: AppUpdateStore,
         welcomeOnboardingStore: WelcomeOnboardingStore? = nil,
-        storeClient: IronsmithStoreClient? = nil,
         iconClient: ToolIconClient = .cachedOnly(),
         iconEditingClient: ToolIconEditingClient? = nil,
-        iconBuildClient: ToolBuildClient? = nil,
-        remixMetadataClient: ToolGenerationPlanningClient? = nil
+        iconBuildClient: ToolBuildClient? = nil
     ) {
         self.appUpdateStore = appUpdateStore
         self.welcomeOnboardingStore = welcomeOnboardingStore ?? WelcomeOnboardingStore()
-        self.remixMetadataClient = remixMetadataClient ?? .live()
         let buildClient = iconBuildClient ?? .live()
-        _storePublisher = State(
-            initialValue: ToolLibraryStorePublisher(
-                storeClient: storeClient ?? .live,
-                iconClient: iconClient,
-                buildClient: buildClient
-            )
-        )
         _detailsEditor = State(
             initialValue: ToolAppDetailsEditorStore(
                 iconClient: iconEditingClient,
@@ -111,23 +79,6 @@ struct ToolLibraryPopoverView: View {
         .task(id: restoreAvailabilityRefreshID) {
             await toolLibraryStore.refreshRestoreAvailability(for: tools)
         }
-        .task(id: storeSourceChangesRefreshID) {
-            guard isStoreFeatureEnabled else { return }
-            await storePublisher.refreshStoreSourceChanges(for: tools)
-        }
-        .task(id: publishedStoreLinkRefreshID) {
-            guard isStoreFeatureEnabled else {
-                await storePublisher.refreshPublishedStoreApps(
-                    isSignedIn: false,
-                    tools: tools
-                )
-                return
-            }
-            await storePublisher.refreshPublishedStoreApps(
-                isSignedIn: inferenceStore.ironsmithSession != nil,
-                tools: tools
-            )
-        }
         .onAppear {
             handlePopoverAppear()
         }
@@ -139,9 +90,6 @@ struct ToolLibraryPopoverView: View {
         }
         .onChange(of: menuBarPopoverPresentationStore.closeCount) { _, _ in
             handlePopoverClose()
-        }
-        .task(id: selectedIronsmithRefreshID) {
-            await refreshSelectedIronsmithAccountIfNeeded()
         }
         .task(id: inferenceStore.hasLoadedModels) {
             presentWelcomeOnboardingIfNeeded()
@@ -170,11 +118,6 @@ struct ToolLibraryPopoverView: View {
             "Ironsmith couldn’t finish",
             isPresented: toolLibraryErrorPresentedBinding
         ) {
-            if toolLibraryStore.presentedErrorAction == .buyIronsmithCredits {
-                Button("Buy Credits") {
-                    openIronsmithCreditPurchase()
-                }
-            }
             Button("OK", role: .cancel) {}
         } message: {
             Text(toolLibraryStore.presentedErrorMessage ?? "")
@@ -194,45 +137,6 @@ struct ToolLibraryPopoverView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(inferenceStore.presentedErrorMessage ?? "")
-        }
-        .alert(
-            "Ironsmith Store",
-            isPresented: storeErrorPresentedBinding
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(storePublisher.errorMessage ?? "")
-        }
-        .alert(
-            "Sign in to Publish",
-            isPresented: storeSignInRequiredBinding
-        ) {
-            Button("Cancel", role: .cancel) {
-                storePublisher.pendingSignInToolID = nil
-            }
-            Button("Sign In") {
-                let toolID = storePublisher.pendingSignInToolID
-                storePublisher.pendingSignInToolID = nil
-                signInToIronsmith(resumePublishingToolID: toolID)
-            }
-        } message: {
-            Text("Sign in with Ironsmith to publish this app to the Ironsmith Store.")
-        }
-        .alert(
-            "Create a Unique Remix?",
-            isPresented: remixIdentityNoticeBinding
-        ) {
-            Button("Skip Name & Icon", role: .cancel) {
-                continuePendingRemixEdit(generateIdentity: false)
-            }
-            Button("Continue") {
-                continuePendingRemixEdit(generateIdentity: true)
-            }
-        } message: {
-            Text(
-                "Ironsmith will generate a new name and icon so this remix has its own identity. "
-                    + "It will do the same for future remixes. You can turn this off anytime in Settings."
-            )
         }
         .confirmationDialog(
             "Delete App?",
@@ -255,7 +159,6 @@ struct ToolLibraryPopoverView: View {
     }
 
     private var sheetContent: some View {
-        @Bindable var storePublisher = storePublisher
         @Bindable var detailsEditor = detailsEditor
 
         return alertContent
@@ -267,39 +170,7 @@ struct ToolLibraryPopoverView: View {
                 onComplete: completeWelcomeOnboarding
             )
         }
-        .sheet(
-            isPresented: $storePublisher.isShowingPublishSheet,
-            onDismiss: handlePublishSheetDismissed
-        ) {
-            storePublishSheet
-        }
-        .sheet(isPresented: $storePublisher.isShowingCreatorProfileSheet) {
-            ToolLibraryCreatorProfileSheetView(
-                displayName: $storePublisher.creatorDisplayName,
-                handle: $storePublisher.creatorHandle,
-                errorMessage: $storePublisher.errorMessage,
-                isSaving: storePublisher.isSavingCreatorProfile,
-                isClaimingHandle:
-                    inferenceStore.ironsmithAccountSummary?.profile?.handle == nil,
-                onCancel: {
-                    storePublisher.isShowingCreatorProfileSheet = false
-                    storePublisher.pendingCreatorProfileToolID = nil
-                },
-                onSave: {
-                    guard isStoreFeatureEnabled else { return }
-                    Task {
-                        await storePublisher.saveCreatorProfile(
-                            inferenceStore: inferenceStore,
-                            tools: tools
-                        )
-                    }
-                }
-            )
-        }
-        .sheet(
-            isPresented: $detailsEditor.isShowingSheet,
-            onDismiss: handleDetailsEditorDismissed
-        ) {
+        .sheet(isPresented: $detailsEditor.isShowingSheet) {
             detailsEditorSheet
         }
         .sheet(isPresented: $isShowingModelPicker) {
@@ -325,12 +196,6 @@ struct ToolLibraryPopoverView: View {
                 sortOrder: sortOrderBinding,
                 appUpdateStore: appUpdateStore,
                 isLoadingModels: !inferenceStore.hasLoadedModels && !shouldForceNoModels,
-                selectedModelStatusText: selectedModelStatusText,
-                selectedIronsmithCreditWarningText: selectedIronsmithCreditWarningText,
-                isStoreEnabled: isStoreFeatureEnabled,
-                onOpenStore: {
-                    routeStore.open(.store(.root))
-                },
                 onOpenSettings: {
                     routeStore.open(.settings(.root))
                 }
@@ -365,7 +230,7 @@ struct ToolLibraryPopoverView: View {
                 modelPickerTitle: composerModelPickerTitle,
                 isModelPickerEnabled: isComposerModelPickerEnabled,
                 isSubmitEnabled: canSubmitPrompt,
-                isSubmitting: toolLibraryStore.isGenerating || remixIdentityGeneratingToolID != nil,
+                isSubmitting: toolLibraryStore.isGenerating,
                 isCodexAgentSupported: inferenceStore.selectedModelSupportsCodingAgentPreference(.codex),
                 customCodingAgents: inferenceStore.customCodingAgents.agents,
                 selectedCustomCodingAgentID: inferenceStore.customCodingAgents.selectedAgentID,
@@ -382,11 +247,7 @@ struct ToolLibraryPopoverView: View {
                     requestPromptSubmission()
                 },
                 onCancel: {
-                    if remixIdentityGeneratingToolID != nil {
-                        cancelRemixIdentityGeneration()
-                    } else {
-                        toolLibraryStore.cancelGeneration()
-                    }
+                    toolLibraryStore.cancelGeneration()
                 },
                 onAddAttachments: { urls in
                     guard toolLibraryStore.addAttachments(from: urls) else { return }
@@ -417,11 +278,7 @@ struct ToolLibraryPopoverView: View {
     private var toolCollectionContent: some View {
         if shouldShowEmptyState {
             ToolLibraryEmptyStateView(
-                showsNoModelActions: shouldShowNoModelsEmptyState,
-                isSigningInToIronsmith: isSigningInToIronsmith,
-                onSignInToIronsmith: {
-                    signInToIronsmith()
-                }
+                showsNoModelActions: shouldShowNoModelsEmptyState
             )
         } else if visibleTools.isEmpty {
             ContentUnavailableView {
@@ -507,11 +364,8 @@ struct ToolLibraryPopoverView: View {
             isRebuilding: toolLibraryStore.rebuildingToolID == tool.id,
             isRestoring: toolLibraryStore.restoringToolID == tool.id,
             isEditingDetails: detailsEditor.isWorking && detailsEditor.editingToolID == tool.id,
-            isPreparingGeneration: remixIdentityGeneratingToolID == tool.id,
+            isPreparingGeneration: false,
             canRevert: toolLibraryStore.canRestorePreviousVersion(tool),
-            showsStoreActions: isStoreFeatureEnabled,
-            canUpdateStoreVersion: canUpdateStoreVersion(for: tool),
-            hasStoreSourceChanges: storePublisher.hasStoreSourceChanges(for: tool),
             activeCodingAgent: toolLibraryStore.activeCodingAgent(for: tool),
             canShowAgentOutput: toolLibraryStore.canShowAgentOutput(for: tool)
         )
@@ -545,9 +399,6 @@ struct ToolLibraryPopoverView: View {
                 Task {
                     await toolLibraryStore.rebuild(tool, in: modelContext)
                 }
-            },
-            onPublishToStore: {
-                routeStore.open(.toolLibrary(.publishTool(tool.id)))
             },
             onRevert: {
                 Task {
@@ -583,11 +434,7 @@ struct ToolLibraryPopoverView: View {
                 toolLibraryStore.discardGeneration(tool, in: modelContext)
             },
             onStop: {
-                if remixIdentityGeneratingToolID == tool.id {
-                    cancelRemixIdentityGeneration()
-                } else {
-                    toolLibraryStore.cancelGeneration()
-                }
+                toolLibraryStore.cancelGeneration()
             },
             onDelete: {
                 toolPendingDeletion = tool
@@ -616,123 +463,25 @@ struct ToolLibraryPopoverView: View {
                     let provider = inferenceStore.effectiveImageGenerationProvider
                     Task {
                         await detailsEditor.generate(for: tool, provider: provider)
-                        if provider == .ironsmith {
-                            await inferenceStore.refreshIronsmithAccountSummary()
-                        }
                     }
                 },
                 onOpenSettings: {
                     routeStore.open(.settings(.root))
                 },
                 onCancel: {
-                    detailsEditorPublishOriginToolID = nil
-                    publishToolIDPendingDetailsReturn = nil
                     detailsEditor.cancel()
                 },
                 onSave: {
                     Task {
-                        let shouldReturnToPublishing =
-                            detailsEditorPublishOriginToolID == tool.id
-                        if shouldReturnToPublishing {
-                            publishToolIDPendingDetailsReturn = tool.id
-                        }
-                        let didSave = await detailsEditor.save(
+                        _ = await detailsEditor.save(
                             tool,
                             in: modelContext,
                             rename: { renameTool(tool, to: $0) }
                         )
-                        if didSave, tool.storeRemixedFromVersionId != nil {
-                            remixIdentityHandledToolIDs.insert(tool.id)
-                        }
-                        if !didSave, shouldReturnToPublishing {
-                            publishToolIDPendingDetailsReturn = nil
-                        }
                     }
                 }
             )
         }
-    }
-
-    @ViewBuilder
-    private var storePublishSheet: some View {
-        @Bindable var storePublisher = storePublisher
-
-        if let tool = tools.first(where: { $0.id == storePublisher.publishingToolID }) {
-            ToolLibraryStorePublishSheetView(
-                tool: tool,
-                generationSettings: tool.generationSettings(
-                    defaults: defaultGenerationSettings
-                ),
-                isUpdatingPublishedListing: storePublisher.isUpdatingPublishedListing,
-                publishShortDescription: $storePublisher.publishShortDescription,
-                publishDescription: $storePublisher.publishDescription,
-                publishCategory: $storePublisher.publishCategory,
-                publishLicense: $storePublisher.publishLicense,
-                publishScreenshotName: storePublisher.publishScreenshotName,
-                publishIconPreviewData: storePublisher.publishIconPreviewData,
-                creatorHandle: inferenceStore.ironsmithAccountSummary?.profile?.handle ?? "",
-                inheritedLegalAttributions: storePublisher.publishInheritedLegalAttributions,
-                publishNameMatchesOriginal: storePublisher.publishNameMatchesOriginal(
-                    for: tool
-                ),
-                isUsingOriginalRemixIcon: storePublisher.isUsingOriginalRemixIcon,
-                isPublishing: storePublisher.isPublishing,
-                errorMessage: $storePublisher.errorMessage,
-                onChooseScreenshot: { url in
-                    storePublisher.importScreenshot(from: url)
-                },
-                onCancel: {
-                    storePublisher.isShowingPublishSheet = false
-                },
-                onEditDetails: {
-                    detailsEditorToolIDPendingPresentation = tool.id
-                    storePublisher.isShowingPublishSheet = false
-                },
-                onPublish: {
-                    guard isStoreFeatureEnabled else { return }
-                    Task {
-                        await storePublisher.publish(
-                            tool,
-                            modelContext: modelContext,
-                            inferenceStore: inferenceStore,
-                            defaultSettings: defaultGenerationSettings,
-                            routeStore: routeStore
-                        )
-                    }
-                }
-            )
-        }
-    }
-
-    private func handlePublishSheetDismissed() {
-        guard let toolID = detailsEditorToolIDPendingPresentation else { return }
-        detailsEditorToolIDPendingPresentation = nil
-        guard storePublisher.publishingToolID == toolID,
-            let tool = tools.first(where: { $0.id == toolID })
-        else { return }
-        detailsEditorPublishOriginToolID = toolID
-        detailsEditor.beginEditing(tool)
-        if !detailsEditor.isShowingSheet {
-            detailsEditorPublishOriginToolID = nil
-        }
-    }
-
-    private func handleDetailsEditorDismissed() {
-        defer {
-            detailsEditorPublishOriginToolID = nil
-            publishToolIDPendingDetailsReturn = nil
-        }
-        guard let toolID = publishToolIDPendingDetailsReturn,
-            storePublisher.publishingToolID == toolID,
-            let tool = tools.first(where: { $0.id == toolID })
-        else { return }
-        storePublisher.refreshPublishIdentity(for: tool)
-        storePublisher.isShowingPublishSheet = true
-    }
-
-    private func refreshSelectedIronsmithAccountIfNeeded() async {
-        guard selectedIronsmithRefreshID != nil else { return }
-        await inferenceStore.refreshIronsmithAccountSummary()
     }
 
     private func handlePopoverAppear() {
@@ -763,33 +512,6 @@ struct ToolLibraryPopoverView: View {
     private var runningApplicationsRefreshID: String {
         let toolIDs = tools.map(\.id.uuidString).sorted().joined(separator: "|")
         return "\(menuBarPopoverPresentationStore.showCount)|\(toolIDs)"
-    }
-
-    private var storeSourceChangesRefreshID: [String] {
-        [isStoreFeatureEnabled ? "store-on" : "store-off"]
-            + tools.map {
-                "\($0.id.uuidString)-\($0.updatedAt.timeIntervalSinceReferenceDate)-\($0.storeSourceSha256 ?? "")"
-            }
-    }
-
-    private var publishedStoreLinkRefreshID: String {
-        let session = inferenceStore.ironsmithSession?.user.id.uuidString ?? "signed-out"
-        let storeFeature = isStoreFeatureEnabled ? "store-on" : "store-off"
-        let links =
-            tools
-            .compactMap { tool -> String? in
-                guard let storeId = tool.storeId,
-                    let storeAppId = tool.storeAppId
-                else { return nil }
-                return "\(storeId):\(storeAppId)"
-            }
-            .sorted()
-            .joined(separator: "|")
-        return "\(storeFeature)|\(session)|\(links)"
-    }
-
-    private func canUpdateStoreVersion(for tool: Tool) -> Bool {
-        storePublisher.canUpdateStoreVersion(for: tool)
     }
 
     private var canSubmitPrompt: Bool {
@@ -836,14 +558,6 @@ struct ToolLibraryPopoverView: View {
         inferenceStore.hasLoadedModels && !shouldForceNoModels
     }
 
-    private var selectedModelStatusText: String? {
-        guard !shouldForceNoModels else {
-            return nil
-        }
-
-        return selectedIronsmithCreditsText
-    }
-
     private var selectedModelDisplayName: String? {
         guard let selectedModel = inferenceStore.selectedModel else {
             return nil
@@ -861,46 +575,6 @@ struct ToolLibraryPopoverView: View {
         }
 
         return inferenceStore.provider(for: selectedModel)
-    }
-
-    private var selectedIronsmithCreditsText: String? {
-        guard selectedProvider?.kind == .ironsmith else {
-            return nil
-        }
-
-        if let credits = inferenceStore.ironsmithAccountSummary?.credits.balanceCredits {
-            return credits == 1 ? "1 credit" : "\(credits) credits"
-        }
-
-        if inferenceStore.isRefreshingIronsmithAccount {
-            return "Refreshing credits"
-        }
-
-        if inferenceStore.ironsmithSession == nil {
-            return "Sign in required"
-        }
-
-        return "Credits unavailable"
-    }
-
-    private var selectedIronsmithCreditWarningText: String? {
-        guard !shouldForceNoModels else {
-            return nil
-        }
-
-        return ToolLibraryCreditWarning.message(
-            model: inferenceStore.selectedModel,
-            provider: selectedProvider,
-            balanceCredits: inferenceStore.ironsmithAccountSummary?.credits.balanceCredits
-        )
-    }
-
-    private var selectedIronsmithRefreshID: String? {
-        guard selectedProvider?.kind == .ironsmith else {
-            return nil
-        }
-
-        return inferenceStore.selectedModelID
     }
 
     private var defaultGenerationSettings: ToolGenerationSettings {
@@ -960,111 +634,9 @@ struct ToolLibraryPopoverView: View {
         )
     }
 
-    private func openIronsmithCreditPurchase() {
-        toolLibraryStore.clearPresentedError()
-        routeStore.open(.settings(.buyIronsmithCredits))
-    }
-
-    private func signInToIronsmith(resumePublishingToolID: UUID? = nil) {
-        guard !isSigningInToIronsmith else { return }
-        isSigningInToIronsmith = true
-
-        Task {
-            let didFinishProviderSetup = await inferenceStore.signInToIronsmithWithAppleOAuth { @MainActor url in
-                try await webAuthenticationSession.authenticate(
-                    using: url,
-                    callbackURLScheme: IronsmithOAuthRedirect.appCallbackScheme
-                )
-            }
-
-            await MainActor.run {
-                isSigningInToIronsmith = false
-                guard didFinishProviderSetup else { return }
-                inferenceStore.selectPreferredIronsmithModel()
-            }
-            guard let resumePublishingToolID,
-                isStoreFeatureEnabled,
-                inferenceStore.ironsmithSession != nil,
-                let tool = tools.first(where: { $0.id == resumePublishingToolID })
-            else { return }
-            await storePublisher.beginPublishing(
-                tool,
-                inferenceStore: inferenceStore,
-                tools: tools
-            )
-        }
-    }
-
-    private func continuePendingRemixEdit(generateIdentity: Bool) {
-        let toolID = remixIdentityNoticeToolID
-        remixIdentityNoticeToolID = nil
-        hasPresentedRemixIdentityNotice = true
-        generatesIdentityForNewRemixes = generateIdentity
-        guard let toolID,
-            let tool = tools.first(where: { $0.id == toolID })
-        else { return }
-        if generateIdentity {
-            startRemixIdentityGeneration(for: tool)
-        } else {
-            submitCurrentPrompt()
-        }
-    }
-
     private func requestPromptSubmission() {
         guard inferenceStore.selectedModel != nil, !shouldForceNoModels else { return }
-        guard let selectedToolID = toolLibraryStore.selectedToolID,
-            let tool = tools.first(where: { $0.id == selectedToolID })
-        else {
-            submitCurrentPrompt()
-            return
-        }
-        if remixIdentityHandledToolIDs.contains(tool.id) {
-            submitCurrentPrompt()
-            return
-        }
-        switch toolLibraryStore.remixIdentitySubmissionAction(
-            for: tool,
-            isStoreFeatureEnabled: isStoreFeatureEnabled,
-            generatesIdentity: generatesIdentityForNewRemixes,
-            hasPresentedNotice: hasPresentedRemixIdentityNotice,
-            isConfirmedDownloadedFromAnotherUser: storePublisher
-                .isConfirmedDownloadedFromAnotherUser(tool)
-        ) {
-        case .submit:
-            submitCurrentPrompt()
-        case .presentNotice:
-            remixIdentityNoticeToolID = tool.id
-        case .generateIdentity:
-            startRemixIdentityGeneration(for: tool)
-        }
-    }
-
-    private func startRemixIdentityGeneration(for tool: Tool) {
-        guard isStoreFeatureEnabled, remixIdentityGenerationTask == nil else { return }
-        let operationID = UUID()
-        remixIdentityGeneratingToolID = tool.id
-        remixIdentityGenerationOperationID = operationID
-        remixIdentityGenerationTask = Task {
-            let didGenerate = await generateRemixIdentity(tool)
-            let wasCancelled = Task.isCancelled
-            finishRemixIdentityGeneration(operationID: operationID)
-            guard didGenerate, !wasCancelled else { return }
-            submitCurrentPrompt()
-        }
-    }
-
-    private func cancelRemixIdentityGeneration() {
-        remixIdentityGenerationTask?.cancel()
-        remixIdentityGenerationTask = nil
-        remixIdentityGeneratingToolID = nil
-        remixIdentityGenerationOperationID = nil
-    }
-
-    private func finishRemixIdentityGeneration(operationID: UUID) {
-        guard remixIdentityGenerationOperationID == operationID else { return }
-        remixIdentityGenerationTask = nil
-        remixIdentityGeneratingToolID = nil
-        remixIdentityGenerationOperationID = nil
+        submitCurrentPrompt()
     }
 
     private func submitCurrentPrompt() {
@@ -1078,48 +650,6 @@ struct ToolLibraryPopoverView: View {
         )
     }
 
-    private func generateRemixIdentity(_ tool: Tool) async -> Bool {
-        do {
-            try await inferenceStore.prepareSelectedModelForGeneration()
-            let languageModelContext = try await inferenceStore.makeSelectedAgentLanguageModelContext(
-                resolutionContext: ToolCodingAgentResolutionContext(
-                    generationMode: .edit,
-                    existingSourceLineCount: nil
-                )
-            )
-            let sourceURL = try tool.packageLayout.packageFileURL(for: tool.contentViewSourcePath)
-            let source = try String(contentsOf: sourceURL, encoding: .utf8)
-            let suggestion = await remixMetadataClient.planCreation(
-                userPrompt: Self.remixIdentityPrompt(for: tool, source: source),
-                imageGenerationProvider: inferenceStore.effectiveImageGenerationProvider,
-                invoker: languageModelContext.languageModelInvoker
-            )
-            guard !Task.isCancelled else { return false }
-            let generatedName = Self.distinctRemixName(
-                suggestion.displayName,
-                originalName: tool.name
-            )
-            let didSave = await detailsEditor.generateAndSaveRemixIdentity(
-                for: tool,
-                name: generatedName,
-                iconPrompt: suggestion.iconPrompt,
-                provider: inferenceStore.effectiveImageGenerationProvider,
-                in: modelContext,
-                rename: { renameTool(tool, to: $0) }
-            )
-            if inferenceStore.effectiveImageGenerationProvider == .ironsmith {
-                await inferenceStore.refreshIronsmithAccountSummary()
-            }
-            if didSave {
-                remixIdentityHandledToolIDs.insert(tool.id)
-            }
-            return didSave
-        } catch {
-            toolLibraryStore.presentedErrorMessage = IronsmithErrorPresentation.message(for: error)
-            return false
-        }
-    }
-
     private func renameTool(_ tool: Tool, to proposedName: String) -> String? {
         guard toolLibraryStore.rename(tool, to: proposedName, in: modelContext) else {
             let message =
@@ -1129,28 +659,6 @@ struct ToolLibraryPopoverView: View {
             return message
         }
         return nil
-    }
-
-    private static func remixIdentityPrompt(for tool: Tool, source: String) -> String {
-        let sourceExcerpt = String(source.prefix(6_000))
-        return """
-            Create a fresh, distinctive identity for a remixed macOS app.
-            Do not reuse the original name “\(tool.name)”. Suggest a different concise app name and a new icon concept that reflects what the app does.
-
-            Category: \(tool.category.rawValue)
-            Existing source:
-            \(sourceExcerpt)
-            """
-    }
-
-    private static func distinctRemixName(_ proposedName: String, originalName: String) -> String {
-        let trimmedName = proposedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty,
-            !StoreAppNameComparison.matches(trimmedName, originalName)
-        else {
-            return "Fresh \(originalName)"
-        }
-        return trimmedName
     }
 
     private func selectToolForEditing(_ tool: Tool, focusPrompt: Bool = true) {
@@ -1165,16 +673,6 @@ struct ToolLibraryPopoverView: View {
             guard let tool = tools.first(where: { $0.id == id }) else { return }
             toolLibraryStore.selectForEditing(tool, defaultSettings: defaultGenerationSettings)
             isPromptFocused = focusPrompt
-        case .publishTool(let id):
-            guard isStoreFeatureEnabled else { return }
-            guard let tool = tools.first(where: { $0.id == id }) else { return }
-            Task {
-                await storePublisher.beginPublishing(
-                    tool,
-                    inferenceStore: inferenceStore,
-                    tools: tools
-                )
-            }
         }
     }
 
@@ -1287,43 +785,6 @@ struct ToolLibraryPopoverView: View {
             set: { isPresented in
                 if !isPresented {
                     inferenceStore.clearPresentedError()
-                }
-            }
-        )
-    }
-
-    private var storeErrorPresentedBinding: Binding<Bool> {
-        Binding(
-            get: {
-                storePublisher.errorMessage != nil
-                    && !storePublisher.isShowingPublishSheet
-                    && !storePublisher.isShowingCreatorProfileSheet
-            },
-            set: { isPresented in
-                if !isPresented {
-                    storePublisher.errorMessage = nil
-                }
-            }
-        )
-    }
-
-    private var storeSignInRequiredBinding: Binding<Bool> {
-        Binding(
-            get: { storePublisher.pendingSignInToolID != nil },
-            set: { isPresented in
-                if !isPresented {
-                    storePublisher.pendingSignInToolID = nil
-                }
-            }
-        )
-    }
-
-    private var remixIdentityNoticeBinding: Binding<Bool> {
-        Binding(
-            get: { remixIdentityNoticeToolID != nil },
-            set: { isPresented in
-                if !isPresented {
-                    remixIdentityNoticeToolID = nil
                 }
             }
         )

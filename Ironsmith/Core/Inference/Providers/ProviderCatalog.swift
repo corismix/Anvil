@@ -6,7 +6,6 @@ enum ProviderModelListResponseFormat {
     case anthropic
     case gemini
     case ollama
-    case ironsmith
 }
 
 struct ProviderDescriptor: Identifiable, Hashable {
@@ -43,16 +42,6 @@ enum ProviderCatalog {
             sortOrder: 100,
             modelsPath: "api/tags",
             responseFormat: .ollama
-        ),
-        .init(
-            kind: .ironsmith,
-            displayName: "Ironsmith",
-            defaultBaseURLString: IronsmithBackendConfiguration.liveOpenAICompatibleBaseURLString,
-            authMode: .platformCredits,
-            origin: .builtIn,
-            sortOrder: 200,
-            modelsPath: "models",
-            responseFormat: .ironsmith
         ),
         .init(
             kind: .openAI,

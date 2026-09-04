@@ -11,10 +11,6 @@ struct ToolLibraryPopoverHeaderView: View {
 
     let appUpdateStore: AppUpdateStore
     let isLoadingModels: Bool
-    let selectedModelStatusText: String?
-    let selectedIronsmithCreditWarningText: String?
-    let isStoreEnabled: Bool
-    let onOpenStore: () -> Void
     let onOpenSettings: () -> Void
     private static let issueReportURL = URL(
         string: "https://github.com/Jeidoban/Ironsmith/issues/new")!
@@ -45,18 +41,6 @@ struct ToolLibraryPopoverHeaderView: View {
             .help(isSearchPresented ? "Close Search" : "Search Apps")
             .accessibilityLabel(isSearchPresented ? "Close app search" : "Search apps")
             .accessibilityIdentifier("tool-search-button")
-
-            if isStoreEnabled {
-                Button(action: onOpenStore) {
-                    Image(systemName: "storefront")
-                        .font(.system(size: 15, weight: .semibold))
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help("Ironsmith Store")
-                .accessibilityLabel("Ironsmith Store")
-                .accessibilityIdentifier("app-store-button")
-            }
 
             Button(action: onOpenSettings) {
                 Image(systemName: "gearshape")
@@ -100,14 +84,6 @@ struct ToolLibraryPopoverHeaderView: View {
                 }
 
                 Divider()
-
-                if isStoreEnabled {
-                    Button("Browse Ironsmith Store...") {
-                        onOpenStore()
-                    }
-
-                    Divider()
-                }
 
                 Button("About Ironsmith") {
                     IronsmithAboutWindowController.shared.show()
@@ -191,13 +167,6 @@ struct ToolLibraryPopoverHeaderView: View {
                 modelStatus
                     .frame(height: 18, alignment: .topLeading)
             }
-
-            if let selectedIronsmithCreditWarningText {
-                Text(selectedIronsmithCreditWarningText)
-                    .font(.caption2.weight(.medium))
-                    .foregroundStyle(.orange)
-                    .lineLimit(1)
-            }
         }
     }
 
@@ -215,16 +184,11 @@ struct ToolLibraryPopoverHeaderView: View {
             }
             .font(.caption.weight(.medium))
             .foregroundStyle(.secondary)
-        } else if let selectedModelStatusText {
-            Text(selectedModelStatusText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
         }
     }
 
     private var shouldShowModelStatus: Bool {
-        isLoadingModels || selectedModelStatusText != nil
+        isLoadingModels
     }
 
     private func toggleSearch() {

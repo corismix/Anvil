@@ -7,6 +7,8 @@ import Foundation
 
 enum ProviderKind: String, Codable, CaseIterable, Identifiable {
     case local
+    /// Removed backend provider. Kept so pre-fork databases still decode;
+    /// bootstrap deletes these rows and the UI never offers it.
     case ironsmith
     case openAI = "openai"
     case anthropic
@@ -25,6 +27,7 @@ enum ProviderOrigin: String, Codable, CaseIterable {
 enum ProviderAuthMode: String, Codable, CaseIterable {
     case none
     case apiKey = "api_key"
+    /// Removed credits-based auth. Kept so pre-fork databases still decode.
     case platformCredits = "platform_credits"
 }
 

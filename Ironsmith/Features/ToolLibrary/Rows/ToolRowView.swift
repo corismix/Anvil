@@ -192,9 +192,6 @@ struct ToolRowView: View {
             isEditingDetails: false,
             isPreparingGeneration: false,
             canRevert: true,
-            showsStoreActions: true,
-            canUpdateStoreVersion: false,
-            hasStoreSourceChanges: true,
             activeCodingAgent: nil,
             canShowAgentOutput: false
         ),
@@ -205,7 +202,6 @@ struct ToolRowView: View {
             onQuit: {},
             onEditDetails: {},
             onRebuild: {},
-            onPublishToStore: {},
             onRevert: {},
             onExport: {},
             onShowInFinder: {},

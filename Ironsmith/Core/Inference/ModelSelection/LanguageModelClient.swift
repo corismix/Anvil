@@ -14,7 +14,6 @@ extension LanguageModelClient {
     static func live(
         credentialClient: CredentialClient,
         localModelClient: LocalModelClient,
-        accountClient: IronsmithAccountClient = .unconfigured,
         openAICodexAuthClient: OpenAICodexAuthClient = .unconfigured
     ) -> Self {
         Self(
@@ -24,7 +23,6 @@ extension LanguageModelClient {
                     provider: provider,
                     credentialClient: credentialClient,
                     localModelClient: localModelClient,
-                    accountClient: accountClient,
                     openAICodexAuthClient: openAICodexAuthClient
                 )
             }
@@ -36,7 +34,6 @@ extension LanguageModelClient {
         provider: ProviderConfig?,
         credentialClient: CredentialClient,
         localModelClient _: LocalModelClient,
-        accountClient: IronsmithAccountClient,
         openAICodexAuthClient: OpenAICodexAuthClient
     ) async throws -> any LanguageModel {
         switch model.source {
@@ -52,18 +49,6 @@ extension LanguageModelClient {
             }
 
             switch provider.kind {
-            case .ironsmith:
-                let token = try await accountClient.generationAccessToken()
-                guard !token.isEmpty else { throw LanguageModelClientError.missingAccountSession }
-                let baseURL = try providerBaseURL(provider)
-                return OpenAILanguageModel(
-                    baseURL: baseURL,
-                    apiKey: token,
-                    model: model.identifier,
-                    apiVariant: .responses,
-                    session: remoteGenerationSession(for: baseURL)
-                )
-
             case .openAI:
                 if let codexModelIdentifier = model.openAICodexRawIdentifier {
                     let credential = try await openAICodexAuthClient.validCredential()
@@ -140,7 +125,7 @@ extension LanguageModelClient {
                     session: remoteGenerationSession(for: baseURL)
                 )
 
-            case .local:
+            case .local, .ironsmith:
                 throw LanguageModelClientError.missingProvider
             }
         }
@@ -239,7 +224,6 @@ private extension URL {
 enum LanguageModelClientError: LocalizedError {
     case foundationModelsUnavailable
     case invalidProviderURL
-    case missingAccountSession
     case unsupportedLegacyLocalModel
     case missingAPIKey
     case missingProvider
@@ -250,8 +234,6 @@ enum LanguageModelClientError: LocalizedError {
             return "Apple Foundation Model is unavailable on this system."
         case .invalidProviderURL:
             return "The provider URL is invalid."
-        case .missingAccountSession:
-            return "Sign in with Ironsmith before using Ironsmith credits."
         case .unsupportedLegacyLocalModel:
             return "This legacy local AI model is no longer supported."
         case .missingAPIKey:

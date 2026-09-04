@@ -5,7 +5,6 @@ nonisolated enum ToolImageGenerationProvider: String, CaseIterable, Codable, Ide
     case imagePlayground = "image_playground"
     case gemini
     case openAI = "openai"
-    case ironsmith
     case disabled
 
     var id: String { rawValue }
@@ -20,8 +19,6 @@ nonisolated enum ToolImageGenerationProvider: String, CaseIterable, Codable, Ide
             return "Gemini"
         case .openAI:
             return "OpenAI"
-        case .ironsmith:
-            return "Ironsmith"
         case .disabled:
             return "Off"
         }

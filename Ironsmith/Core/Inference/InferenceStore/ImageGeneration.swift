@@ -13,9 +13,6 @@ extension InferenceStore {
         if ImagePlaygroundViewController.isAvailable {
             result.append(.imagePlayground)
         }
-        if ironsmithSession != nil, configuredImageProvider(.ironsmith) != nil {
-            result.append(.ironsmith)
-        }
         result.append(.disabled)
         return result
     }
@@ -56,9 +53,6 @@ extension InferenceStore {
         if ImagePlaygroundViewController.isAvailable {
             return .imagePlayground
         }
-        if ironsmithSession != nil, configuredImageProvider(.ironsmith) != nil {
-            return .ironsmith
-        }
         return .disabled
     }
 
@@ -77,10 +71,6 @@ extension InferenceStore {
                 : nil
         case .gemini:
             return configuredImageProvider(.gemini) != nil ? .gemini : nil
-        case .ironsmith:
-            return ironsmithSession != nil && configuredImageProvider(.ironsmith) != nil
-                ? .ironsmith
-                : nil
         default:
             return nil
         }
@@ -93,8 +83,6 @@ extension InferenceStore {
             case .gemini, .openAI:
                 guard let reference = provider.apiKeyReference else { return false }
                 return ((try? dependencies.credentialClient.loadAPIKey(reference)) ?? "").isEmpty == false
-            case .ironsmith:
-                return true
             default:
                 return false
             }

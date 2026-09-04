@@ -7,16 +7,6 @@ import Foundation
 import Observation
 import SwiftData
 
-enum ToolLibraryPresentedErrorAction: Equatable {
-    case buyIronsmithCredits
-}
-
-enum ToolRemixIdentitySubmissionAction: Equatable {
-    case submit
-    case presentNotice
-    case generateIdentity
-}
-
 private enum ToolLibraryGenerationError: LocalizedError {
     case missingPreparedTool
 
@@ -61,7 +51,6 @@ final class ToolLibraryStore {
     // Tool-library UI state: which tool is selected, and what the composer should say.
     var prompt: String
     var presentedErrorMessage: String?
-    var presentedErrorAction: ToolLibraryPresentedErrorAction?
     var isGenerating = false
     var sandboxEnabled = true
     var appKind: ToolAppKind = .window
@@ -556,12 +545,10 @@ final class ToolLibraryStore {
             }
             prompt = Self.defaultPrompt
             attachments = []
-            await refreshIronsmithCreditsIfNeeded(inferenceStore)
         } catch {
             if IronsmithErrorPresentation.isCancellation(error) || Task.isCancelled {
                 await handleGenerationCancellation(activeTool, in: modelContext)
             } else if isResumableGenerationStop(error) {
-                await refreshIronsmithCreditsIfNeeded(inferenceStore)
                 if let activeTool {
                     let message = generationErrorMessage(for: error)
                     markToolStopped(activeTool, summary: message)
@@ -574,7 +561,6 @@ final class ToolLibraryStore {
                 }
                 presentGenerationError(error)
             } else {
-                await refreshIronsmithCreditsIfNeeded(inferenceStore)
                 if let activeTool {
                     markToolFailed(activeTool, error: error)
                     try? modelContext.save()
@@ -604,16 +590,8 @@ final class ToolLibraryStore {
         generationStopWasRequested = false
     }
 
-    private func refreshIronsmithCreditsIfNeeded(_ inferenceStore: InferenceStore) async {
-        guard inferenceStore.selectedModelUsesIronsmith else { return }
-        await inferenceStore.refreshIronsmithAccountSummary()
-    }
-
     private func presentGenerationError(_ error: Error) {
-        presentError(
-            generationErrorMessage(for: error),
-            action: generationErrorAction(for: error)
-        )
+        presentError(generationErrorMessage(for: error))
     }
 
     private func generationErrorMessage(for error: Error) -> String {
@@ -622,15 +600,6 @@ final class ToolLibraryStore {
         }
 
         return error.localizedDescription
-    }
-
-    private func generationErrorAction(for error: Error) -> ToolLibraryPresentedErrorAction? {
-        if let inferenceStoreError = error as? InferenceStoreError,
-           case .insufficientIronsmithCredits = inferenceStoreError {
-            return .buyIronsmithCredits
-        }
-
-        return nil
     }
 
     private func isGenericAnyLanguageModelError(_ error: Error) -> Bool {
@@ -747,17 +716,12 @@ final class ToolLibraryStore {
         clearPresentedErrorState()
     }
 
-    private func presentError(
-        _ message: String,
-        action: ToolLibraryPresentedErrorAction? = nil
-    ) {
+    private func presentError(_ message: String) {
         presentedErrorMessage = message
-        presentedErrorAction = action
     }
 
     private func clearPresentedErrorState() {
         presentedErrorMessage = nil
-        presentedErrorAction = nil
     }
 
     private func clearSelection() {
@@ -909,12 +873,10 @@ final class ToolLibraryStore {
             if shouldNotifyGenerationTerminalEvent {
                 await notifyGenerationFinished(tool)
             }
-            await refreshIronsmithCreditsIfNeeded(inferenceStore)
         } catch {
             if IronsmithErrorPresentation.isCancellation(error) || Task.isCancelled {
                 await handleGenerationCancellation(tool, in: modelContext)
             } else if isResumableGenerationStop(error) {
-                await refreshIronsmithCreditsIfNeeded(inferenceStore)
                 let message = generationErrorMessage(for: error)
                 markToolStopped(tool, summary: message)
                 try? modelContext.save()
@@ -923,7 +885,6 @@ final class ToolLibraryStore {
                 }
                 presentGenerationError(error)
             } else {
-                await refreshIronsmithCreditsIfNeeded(inferenceStore)
                 markToolFailed(tool, error: error)
                 try? modelContext.save()
                 if shouldNotifyGenerationTerminalEvent {
@@ -1120,35 +1081,6 @@ final class ToolLibraryStore {
         tool.applyGenerationSettings(result.settings)
         tool.packageRootPath = result.packageRootURL.path
         clearPendingGeneration(on: tool)
-    }
-
-    func isFirstEditOfDownloadedApp(_ tool: Tool) -> Bool {
-        guard tool.storeAppId != nil,
-              tool.storeVersionId != nil,
-              tool.isGenerationReady,
-              let storeSourceSha256 = tool.storeSourceSha256?.lowercased(),
-              let source = try? String(
-                  contentsOf: Self.contentViewURL(for: tool),
-                  encoding: .utf8
-              ),
-              IronsmithStoreClient.sha256Hex(for: source) == storeSourceSha256
-        else { return false }
-        return true
-    }
-
-    func remixIdentitySubmissionAction(
-        for tool: Tool,
-        isStoreFeatureEnabled: Bool,
-        generatesIdentity: Bool,
-        hasPresentedNotice: Bool,
-        isConfirmedDownloadedFromAnotherUser: Bool
-    ) -> ToolRemixIdentitySubmissionAction {
-        guard isStoreFeatureEnabled,
-            isConfirmedDownloadedFromAnotherUser,
-            isFirstEditOfDownloadedApp(tool),
-            generatesIdentity
-        else { return .submit }
-        return hasPresentedNotice ? .generateIdentity : .presentNotice
     }
 
     private func clearPendingGeneration(on tool: Tool) {

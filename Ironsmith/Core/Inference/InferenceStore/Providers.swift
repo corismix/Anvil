@@ -23,7 +23,6 @@ extension InferenceStore {
     func models(for provider: ProviderConfig) -> [ModelConfig] {
         let source = provider.kind == .local ? enabledPersistedModels : remoteModels
         let models = source.filter { $0.providerIdentifier == provider.identifier }
-        guard provider.kind != .ironsmith else { return models }
         return models.sorted {
             $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending
         }
@@ -61,28 +60,14 @@ extension InferenceStore {
             try repository.save()
             try refreshData()
 
-            if provider.kind == .ironsmith {
-                let didDiscoverModels = await refreshDiscoveredModels(for: provider)
-                guard didDiscoverModels else {
-                    await removeProvider(provider)
-                    return false
-                }
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await refreshDiscoveredModels(for: provider)
                 if selectedModelID == nil {
                     selectModel(
                         remoteModels.first(where: { $0.providerIdentifier == provider.identifier })?
                             .selectionIdentifier
                     )
-                }
-            } else {
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    await refreshDiscoveredModels(for: provider)
-                    if selectedModelID == nil {
-                        selectModel(
-                            remoteModels.first(where: { $0.providerIdentifier == provider.identifier })?
-                                .selectionIdentifier
-                        )
-                    }
                 }
             }
             return true
@@ -220,12 +205,6 @@ extension InferenceStore {
             }
 
             remoteModels.removeAll { $0.providerIdentifier == provider.identifier }
-            if provider.kind == .ironsmith {
-                providerConnectionIssues[provider.identifier] = ProviderConnectionIssue(
-                    message: error.localizedDescription
-                )
-                return false
-            }
             if shouldShowConnectionIssueOnProviderCard(provider, error: error) {
                 providerConnectionIssues[provider.identifier] = ProviderConnectionIssue(
                     message: provider.kind == .ollama
@@ -242,7 +221,7 @@ extension InferenceStore {
 
     func refreshServerProvidersForSettings() async {
         let serverProviders = providers.filter {
-            $0.kind == .ollama || $0.kind == .customOpenAICompatible || $0.kind == .ironsmith
+            $0.kind == .ollama || $0.kind == .customOpenAICompatible
         }
         guard !serverProviders.isEmpty else { return }
 

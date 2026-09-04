@@ -5,7 +5,7 @@ struct ToolAppBundleRequest: Equatable, Sendable {
     let executableName: String
     let bundleIdentifier: String
     let packageRootURL: URL
-    let category: StoreAppCategory
+    let category: ToolAppCategory
     let versionNumber: Int
     let settings: ToolGenerationSettings
     let iconPrompt: String?
@@ -35,7 +35,7 @@ struct ToolAppBundleRequest: Equatable, Sendable {
         executableName: String,
         bundleIdentifier: String,
         packageRootURL: URL,
-        category: StoreAppCategory = .utilities,
+        category: ToolAppCategory = .utilities,
         versionNumber: Int = 1,
         settings: ToolGenerationSettings,
         iconPrompt: String? = nil

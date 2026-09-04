@@ -23,7 +23,6 @@ extension InferenceStore {
             model: selectedModel,
             provider: provider
         )
-        let shouldRefreshIronsmithCredits = provider?.kind == .ironsmith
         let customCodingAgent: CustomCodingAgent?
         if codingAgent == .custom {
             guard let selectedAgent = customCodingAgents.selectedAgent else {
@@ -62,9 +61,7 @@ extension InferenceStore {
                 model: selectedModel,
                 provider: provider
             ),
-            codingAgentContextWindowTokens: provider?.kind == .ironsmith
-                ? selectedModel.contextWindowTokens
-                : nil,
+            codingAgentContextWindowTokens: nil,
             codexAgentAuthentication: try await codexAgentAuthentication(
                 for: selectedModel,
                 provider: provider,
@@ -76,11 +73,7 @@ extension InferenceStore {
                 provider: provider,
                 codingAgent: codingAgent
             ),
-            reasoningEffort: reasoningEffort,
-            afterLanguageModelInvocation: { [weak self] in
-                guard shouldRefreshIronsmithCredits else { return }
-                await self?.refreshIronsmithAccountSummary()
-            }
+            reasoningEffort: reasoningEffort
         )
     }
 
@@ -123,43 +116,8 @@ extension InferenceStore {
     }
 
     func prepareSelectedModelForGeneration() async throws {
-        guard let selectedModel else {
+        guard selectedModel != nil else {
             throw InferenceStoreError.missingSelectedModel
-        }
-
-        let provider = provider(for: selectedModel)
-        guard provider?.kind == .ironsmith else {
-            return
-        }
-
-        ironsmithSession = dependencies.accountClient.currentSession()
-        guard ironsmithSession != nil else {
-            throw LanguageModelClientError.missingAccountSession
-        }
-
-        isRefreshingIronsmithAccount = true
-        defer { isRefreshingIronsmithAccount = false }
-
-        ironsmithAccountSummary = try await dependencies.accountClient.fetchAccountSummary()
-        ironsmithSession = dependencies.accountClient.currentSession()
-        try validateSelectedModelCanGenerate(selectedModel, provider: provider)
-    }
-
-    private func validateSelectedModelCanGenerate(
-        _ model: ModelConfig,
-        provider: ProviderConfig?
-    ) throws {
-        guard model.source == .remote, provider?.kind == .ironsmith else {
-            return
-        }
-
-        guard ironsmithSession != nil else {
-            throw LanguageModelClientError.missingAccountSession
-        }
-
-        if let balanceCredits = ironsmithAccountSummary?.credits.balanceCredits, balanceCredits <= 0
-        {
-            throw InferenceStoreError.insufficientIronsmithCredits
         }
     }
 
@@ -196,21 +154,6 @@ extension InferenceStore {
         }
 
         switch provider.kind {
-        case .ironsmith:
-            let accessToken = try await dependencies.accountClient.generationAccessToken()
-            guard !accessToken.isEmpty else {
-                throw LanguageModelClientError.missingAccountSession
-            }
-            return .customResponsesProvider(
-                CodexAgentCustomResponsesProvider(
-                    configurationIdentifier: "ironsmith",
-                    sessionProviderIdentifier: provider.identifier,
-                    displayName: provider.displayName,
-                    baseURL: try codexProviderBaseURL(provider),
-                    authenticationEnvironmentVariable: "IRONSMITH_CODEX_ACCESS_TOKEN",
-                    authenticationToken: accessToken
-                )
-            )
         case .openAI:
             if model.openAICodexRawIdentifier != nil {
                 return .chatGPTLogin
@@ -241,7 +184,7 @@ extension InferenceStore {
                     baseURL: codexProviderBaseURL(provider)
                 )
             )
-        case .local, .anthropic, .gemini:
+        case .local, .anthropic, .gemini, .ironsmith:
             throw CodexAgentError.unsupportedProvider
         }
     }

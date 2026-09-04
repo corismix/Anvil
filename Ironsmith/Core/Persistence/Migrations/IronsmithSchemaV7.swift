@@ -14,7 +14,7 @@ enum IronsmithSchemaV7: VersionedSchema {
         var name: String
         var executableName: String
         var bundleIdentifier: String
-        var category: StoreAppCategory = StoreAppCategory.utilities
+        var category: ToolAppCategory = ToolAppCategory.utilities
         var sandboxEnabled: Bool
         var appKind: ToolAppKind = ToolAppKind.window
         var menuBarSystemImage: String = ToolMenuBarSymbol.fallback
@@ -42,7 +42,7 @@ enum IronsmithSchemaV7: VersionedSchema {
             name: String,
             executableName: String? = nil,
             bundleIdentifier: String? = nil,
-            category: StoreAppCategory = .utilities,
+            category: ToolAppCategory = .utilities,
             sandboxEnabled: Bool = true,
             appKind: ToolAppKind = .window,
             menuBarSystemImage: String = ToolMenuBarSymbol.fallback,

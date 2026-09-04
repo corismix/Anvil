@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum StoreAppCategory: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
+nonisolated enum ToolAppCategory: String, Codable, CaseIterable, Identifiable, Hashable, Sendable {
     case business
     case developerTools
     case education

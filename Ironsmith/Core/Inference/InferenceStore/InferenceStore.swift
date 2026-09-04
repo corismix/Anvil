@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import Supabase
 import SwiftData
 
 enum OllamaInstallationStatus: Equatable {
@@ -50,13 +49,7 @@ final class InferenceStore {
     var providerConnectionIssues: [String: ProviderConnectionIssue] = [:]
     var startingOllamaProviderIDs: Set<String> = []
     var selectedModelFallbackMessage: String?
-    var ironsmithSession: Session?
     var openAICodexCredential: OpenAICodexCredential?
-    var ironsmithAccountSummary: IronsmithAccountSummary?
-    var ironsmithCreditPacks: [IronsmithCreditPack] = []
-    var isRefreshingIronsmithAccount = false
-    var isRefreshingIronsmithCreditPacks = false
-    var isCreatingIronsmithCheckoutSession = false
     var isAppleFoundationModelEnabled: Bool {
         didSet {
             appleFoundationModelPreferenceStore.isEnabled = isAppleFoundationModelEnabled
@@ -69,7 +62,6 @@ final class InferenceStore {
     // Internal coordination state shared by the responsibility-focused InferenceStore extensions.
     var hasLoaded = false
     var isLoading = false
-    var pendingIronsmithAccountRefreshAfterCheckout = false
     var repository: InferenceRepository?
     let dependencies: InferenceDependencies
     @ObservationIgnored private var appleFoundationModelPreferenceStore: AppleFoundationModelPreferenceStore
@@ -115,7 +107,6 @@ final class InferenceStore {
             return
         }
 
-        ironsmithSession = dependencies.accountClient.currentSession()
         refreshOpenAICodexCredential()
         reconcileImageGenerationProvider()
         let selectedRemoteProvider = providers.first { provider in
@@ -188,7 +179,6 @@ final class InferenceStore {
 enum InferenceStoreError: LocalizedError {
     case missingSelectedModel
     case missingCustomCodingAgent
-    case insufficientIronsmithCredits
 
     var errorDescription: String? {
         switch self {
@@ -196,9 +186,6 @@ enum InferenceStoreError: LocalizedError {
             return InferenceMessages.noAvailableModels
         case .missingCustomCodingAgent:
             return "Choose or add a custom coding agent before generating an app."
-        case .insufficientIronsmithCredits:
-            return
-                "Your AI credits have run out. Buy more below, or switch to a local or API-key model to keep going."
         }
     }
 }

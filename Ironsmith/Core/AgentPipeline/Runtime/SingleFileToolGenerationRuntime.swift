@@ -10,7 +10,7 @@ struct SingleFileToolGenerationRuntime {
         let displayName: String
         let executableName: String
         let bundleIdentifier: String
-        let category: StoreAppCategory
+        let category: ToolAppCategory
         let layout: ToolPackageLayout
         let contentViewPath: String
         let iconPrompt: String?
@@ -1547,7 +1547,7 @@ struct SingleFileToolGenerationRuntime {
         displayName: String,
         executableName: String,
         bundleIdentifier: String,
-        category: StoreAppCategory,
+        category: ToolAppCategory,
         versionNumber: Int,
         packageRootURL: URL,
         settings: ToolGenerationSettings,

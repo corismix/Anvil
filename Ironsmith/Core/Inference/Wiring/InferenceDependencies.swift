@@ -2,7 +2,6 @@ import Foundation
 
 struct InferenceDependencies {
     var credentialClient: CredentialClient
-    var accountClient: IronsmithAccountClient
     var openAICodexAuthClient: OpenAICodexAuthClient
     var remoteModelClient: RemoteModelClient
     var localModelClient: LocalModelClient
@@ -11,7 +10,6 @@ struct InferenceDependencies {
 
     init(
         credentialClient: CredentialClient,
-        accountClient: IronsmithAccountClient = .unconfigured,
         openAICodexAuthClient: OpenAICodexAuthClient = .unconfigured,
         remoteModelClient: RemoteModelClient,
         localModelClient: LocalModelClient,
@@ -19,7 +17,6 @@ struct InferenceDependencies {
         languageModelClient: LanguageModelClient
     ) {
         self.credentialClient = credentialClient
-        self.accountClient = accountClient
         self.openAICodexAuthClient = openAICodexAuthClient
         self.remoteModelClient = remoteModelClient
         self.localModelClient = localModelClient
@@ -32,14 +29,11 @@ extension InferenceDependencies {
     static var live: Self {
         let credentialClient = CredentialClient.live
         let localModelClient = LocalModelClient.live
-        let accountClient = IronsmithAccountClient.live
         let openAICodexAuthClient = OpenAICodexAuthClient.live()
         return Self(
             credentialClient: credentialClient,
-            accountClient: accountClient,
             openAICodexAuthClient: openAICodexAuthClient,
             remoteModelClient: .live(
-                accountClient: accountClient,
                 openAICodexAuthClient: openAICodexAuthClient
             ),
             localModelClient: localModelClient,
@@ -47,7 +41,6 @@ extension InferenceDependencies {
             languageModelClient: .live(
                 credentialClient: credentialClient,
                 localModelClient: localModelClient,
-                accountClient: accountClient,
                 openAICodexAuthClient: openAICodexAuthClient
             )
         )

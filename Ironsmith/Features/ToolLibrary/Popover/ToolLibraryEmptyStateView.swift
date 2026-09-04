@@ -2,17 +2,9 @@ import SwiftUI
 
 struct ToolLibraryEmptyStateView: View {
     let showsNoModelActions: Bool
-    let isSigningInToIronsmith: Bool
-    let onSignInToIronsmith: () -> Void
 
-    init(
-        showsNoModelActions: Bool = false,
-        isSigningInToIronsmith: Bool = false,
-        onSignInToIronsmith: @escaping () -> Void = {}
-    ) {
+    init(showsNoModelActions: Bool = false) {
         self.showsNoModelActions = showsNoModelActions
-        self.isSigningInToIronsmith = isSigningInToIronsmith
-        self.onSignInToIronsmith = onSignInToIronsmith
     }
 
     var body: some View {
@@ -33,23 +25,6 @@ struct ToolLibraryEmptyStateView: View {
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if showsNoModelActions {
-                Button(action: onSignInToIronsmith) {
-                    HStack(spacing: 6) {
-                        if isSigningInToIronsmith {
-                            ProgressView()
-                                .controlSize(.small)
-                                .accessibilityLabel("Signing in")
-                        }
-                        Text(isSigningInToIronsmith ? "Signing In..." : "Sign in to Ironsmith")
-                    }
-                    .frame(minWidth: 154)
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(isSigningInToIronsmith)
-                .padding(.top, 4)
-            }
         }
         .padding(.horizontal, 20)
         .frame(maxWidth: .infinity)
@@ -63,7 +38,7 @@ struct ToolLibraryEmptyStateView: View {
     private var message: String {
         if showsNoModelActions {
             return
-                "No AI models are available. Add a provider in settings or sign into Ironsmith for immediate access."
+                "No AI models are available. Add a provider in Settings to get started."
         }
 
         return

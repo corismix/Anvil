@@ -5,7 +5,7 @@ struct ToolCreationPlan: Equatable, Sendable {
     let displayName: String
     let iconPrompt: String
     let menuBarSystemImage: String
-    let category: StoreAppCategory
+    let category: ToolAppCategory
     let suggestedAppKind: ToolAppKind
     let suggestedSandboxPermissions: GeneratedAppSandboxPermissions
     let suggestedResourcePermissions: GeneratedAppResourcePermissions
@@ -14,7 +14,7 @@ struct ToolCreationPlan: Equatable, Sendable {
         displayName: String,
         iconPrompt: String,
         menuBarSystemImage: String = ToolMenuBarSymbol.fallback,
-        category: StoreAppCategory = .utilities,
+        category: ToolAppCategory = .utilities,
         suggestedAppKind: ToolAppKind = .window,
         suggestedSandboxPermissions: GeneratedAppSandboxPermissions = .none,
         suggestedResourcePermissions: GeneratedAppResourcePermissions = .none
@@ -83,7 +83,7 @@ extension GeneratedToolCreationPlan {
         displayName: String,
         iconPrompt: String,
         menuBarSystemImage: String = ToolMenuBarSymbol.fallback,
-        category: String = StoreAppCategory.utilities.rawValue,
+        category: String = ToolAppCategory.utilities.rawValue,
         appKind: String = ToolAppKind.window.rawValue
     ) {
         self.init(
@@ -394,7 +394,7 @@ struct ToolGenerationPlanningClient: Sendable {
         \(ToolMenuBarSymbol.allowedSymbols.joined(separator: ", "))
 
         Allowed category values:
-        \(StoreAppCategory.allCases.map(\.rawValue).joined(separator: ", "))
+        \(ToolAppCategory.allCases.map(\.rawValue).joined(separator: ", "))
 
         Allowed appKind values:
         \(ToolAppKind.allCases.map(\.rawValue).joined(separator: ", "))
@@ -487,7 +487,7 @@ struct ToolGenerationPlanningClient: Sendable {
         let iconPrompt = response.iconPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let menuBarSystemImage = ToolMenuBarSymbol.validated(response.menuBarSystemImage)
         let category =
-            StoreAppCategory(
+            ToolAppCategory(
                 rawValue: response.category.trimmingCharacters(in: .whitespacesAndNewlines)
             )
             ?? fallback.category

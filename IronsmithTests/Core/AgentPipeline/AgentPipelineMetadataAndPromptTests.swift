@@ -32,7 +32,7 @@ extension AgentPipelineTests {
                 displayName: "Camera Dot",
                 iconPrompt: "Camera with dot",
                 menuBarSystemImage: "camera",
-                category: StoreAppCategory.utilities.rawValue,
+                category: ToolAppCategory.utilities.rawValue,
                 appKind: ToolAppKind.menuBar.rawValue,
                 sandboxPermissions: [
                     GeneratedAppSandboxPermission.outgoingConnections.rawValue,
@@ -120,7 +120,7 @@ extension AgentPipelineTests {
         #expect(prompt.contains("User request:\nrecipes"))
         #expect(prompt.contains("Allowed menuBarSystemImage values:"))
         #expect(prompt.contains("Allowed category values:"))
-        #expect(prompt.contains(StoreAppCategory.graphicsDesign.rawValue))
+        #expect(prompt.contains(ToolAppCategory.graphicsDesign.rawValue))
         #expect(prompt.contains("Allowed sandboxPermissions values:"))
         #expect(prompt.contains("Allowed resourcePermissions values:"))
         #expect(!(prompt.contains("Planning budget:")))
@@ -182,7 +182,7 @@ extension AgentPipelineTests {
                 displayName: "Budget Board",
                 iconPrompt: "Ledger with coins",
                 menuBarSystemImage: ToolMenuBarSymbol.fallback,
-                category: StoreAppCategory.finance.rawValue
+                category: ToolAppCategory.finance.rawValue
             )
         )
 

@@ -297,7 +297,7 @@ struct ToolGenerationResult: Equatable, Sendable {
     let toolName: String
     let executableName: String
     let bundleIdentifier: String
-    let category: StoreAppCategory
+    let category: ToolAppCategory
     let settings: ToolGenerationSettings
     let packageRootURL: URL
 
@@ -305,7 +305,7 @@ struct ToolGenerationResult: Equatable, Sendable {
         toolName: String,
         executableName: String,
         bundleIdentifier: String? = nil,
-        category: StoreAppCategory = .utilities,
+        category: ToolAppCategory = .utilities,
         settings: ToolGenerationSettings,
         packageRootURL: URL
     ) {
