@@ -56,7 +56,7 @@ nonisolated struct ToolPackageDependencyStore: Sendable {
     var pendingRequest: @Sendable (_ packageRootURL: URL) -> [ToolPackageDependencyRequest]
     var clearPendingRequest: @Sendable (_ packageRootURL: URL) throws -> Void
     var allowed: @Sendable (_ packageRootURL: URL) -> [ToolPackageDependencyRequest]
-    var setAllowed: @Sendable (_ packageRootURL: URL, _ [ToolPackageDependencyRequest]) throws -> Void
+    var setAllowed: @Sendable (_ packageRootURL: URL, _ dependencies: [ToolPackageDependencyRequest]) throws -> Void
 
     static let live = ToolPackageDependencyStore(
         pendingRequest: { packageRootURL in
