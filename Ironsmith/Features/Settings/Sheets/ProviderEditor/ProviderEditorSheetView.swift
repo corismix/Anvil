@@ -153,7 +153,6 @@ struct ProviderEditorSheetView: View {
         .onDisappear {
             onNestedSheetPresentationChange(false)
         }
-    }
         .textFieldStyle(.roundedBorder)
         .confirmationDialog(
             "Delete \(provider.displayName)?",

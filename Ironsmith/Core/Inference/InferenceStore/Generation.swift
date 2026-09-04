@@ -9,7 +9,6 @@ extension InferenceStore {
         }
 
         let provider = provider(for: selectedModel)
-        try validateSelectedModelCanGenerate(selectedModel, provider: provider)
         let languageModel = try await dependencies.languageModelClient.makeLanguageModel(
             selectedModel, provider)
         let codingAgent = ToolCodingAgentResolver.resolve(

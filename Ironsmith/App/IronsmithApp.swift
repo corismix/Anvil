@@ -19,10 +19,6 @@ final class IronsmithAppDelegate: NSObject, NSApplicationDelegate {
         applicationController?.handle(urls)
     }
 
-    func applicationDidBecomeActive(_ notification: Notification) {
-        applicationController?.applicationDidBecomeActive()
-    }
-
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
     }
