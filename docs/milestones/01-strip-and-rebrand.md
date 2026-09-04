@@ -96,7 +96,8 @@ Persistence compatibility:
   every push/PR on the `macos-26` runner. Upstream `ci.yml` and
   `release.yml` deleted (release flow depended on removed backend flags and
   Developer ID certs; Anvil release packaging is future work).
-- 1b rename: not started.
+- 1b rename: in progress on top of 1a (content sweep + file/dir renames +
+  ~/.ironsmith -> ~/.anvil migration + README rewrite).
 
 ## Verification
 

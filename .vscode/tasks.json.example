@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "Ironsmith: Build Debug App",
+            "label": "Anvil: Build Debug App",
             "type": "shell",
             "command": "${workspaceFolder}/script/build.sh",
             "options": {

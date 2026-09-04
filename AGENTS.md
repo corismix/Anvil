@@ -1,9 +1,9 @@
-# Ironsmith Agent Guide
+# Anvil Agent Guide
 
 ## Scope
 
-- This guide covers the macOS app in `Ironsmith/` and its tests in `IronsmithTests/`.
-- `ironsmith-backend/` is a separate nested repository with its own `AGENTS.md`. Work from that directory and follow its guide for backend changes.
+- This guide covers the macOS app in `Anvil/` and its tests in `AnvilTests/`.
+- `anvil-backend/` is a separate nested repository with its own `AGENTS.md`. Work from that directory and follow its guide for backend changes.
 - Source and focused tests are the operational source of truth. Prefer following nearby code patterns over expanding this guide with implementation details.
 
 ## Build And Test
@@ -13,21 +13,21 @@
 - Run tests with `script/test.sh`. Pass normal `swift test` filters through the script when narrowing a failure.
 - Use `script/clean.sh` to remove SwiftPM and staged build outputs.
 - Release, signing, packaging, and notarization workflows live in `script/build.sh`, `script/package.sh`, and `script/release.sh`; consult their usage text rather than duplicating flags here.
-- Release apps are architecture-specific and bundle only the matching Codex CLI payload. Release builds require an explicit architecture; `IRONSMITH_CODEX_VERSION` or `--codex-version` controls the bundled version.
+- Release apps are architecture-specific and bundle only the matching Codex CLI payload. Release builds require an explicit architecture; `ANVIL_CODEX_VERSION` or `--codex-version` controls the bundled version.
 - Build-time backend values are documented in `Config/.env.example`; `Config/.env` is local and must not be committed.
 - Tests use Swift Testing (`@Test`, `#expect`, `#require`), not XCTest.
 
 ## Project Map
 
-- `Ironsmith/App`: application startup, AppKit controllers, routing, settings/about window presentation.
-- `Ironsmith/Core/Models`: stable model aliases, domain enums, and application-facing computed behavior.
-- `Ironsmith/Core/Persistence`: SwiftData setup and migrations, app paths/preferences, startup seeding, and repositories.
-- `Ironsmith/Core/Inference`: provider metadata, credentials/accounts, model discovery and selection, local model/Ollama work, language-model construction, and `InferenceStore`.
-- `Ironsmith/Core/AgentPipeline`: generated-package layout, prompts, file/process clients, source cleanup, compile/repair loops, app bundling, icons, and generation runtime.
-- `Ironsmith/Features/Launch`: Command Line Tools detection and launch routing.
-- `Ironsmith/Features/ToolLibrary`: menu bar popover UI, `ToolLibraryStore`, tool actions, and app update checks.
-- `Ironsmith/Features/Settings`: settings UI and provider/model management.
-- `IronsmithTests` mirrors these areas. Put focused tests beside the behavior being changed.
+- `Anvil/App`: application startup, AppKit controllers, routing, settings/about window presentation.
+- `Anvil/Core/Models`: stable model aliases, domain enums, and application-facing computed behavior.
+- `Anvil/Core/Persistence`: SwiftData setup and migrations, app paths/preferences, startup seeding, and repositories.
+- `Anvil/Core/Inference`: provider metadata, credentials/accounts, model discovery and selection, local model/Ollama work, language-model construction, and `InferenceStore`.
+- `Anvil/Core/AgentPipeline`: generated-package layout, prompts, file/process clients, source cleanup, compile/repair loops, app bundling, icons, and generation runtime.
+- `Anvil/Features/Launch`: Command Line Tools detection and launch routing.
+- `Anvil/Features/ToolLibrary`: menu bar popover UI, `ToolLibraryStore`, tool actions, and app update checks.
+- `Anvil/Features/Settings`: settings UI and provider/model management.
+- `AnvilTests` mirrors these areas. Put focused tests beside the behavior being changed.
 
 ## Architecture
 
@@ -40,7 +40,7 @@
 
 ## App Shell
 
-- Ironsmith is a menu-bar-first macOS app. `IronsmithApplicationController` wires persistence, shared stores, routing, settings, and `IronsmithMenuBarController`.
+- Anvil is a menu-bar-first macOS app. `AnvilApplicationController` wires persistence, shared stores, routing, settings, and `AnvilMenuBarController`.
 - The main menu bar surface is an AppKit `NSStatusItem` and `NSPopover`. Generated tools may independently use SwiftUI window or `MenuBarExtra` app entries.
 - Keep startup wiring in the application layer and feature state in its owning store. Do not introduce a template-style main window flow without an intentional product change.
 - Startup installs the curated macOS Codex plugin opportunistically; failure is diagnostic-only and retries on the next launch.
@@ -51,21 +51,21 @@
 - `ProviderCatalog` is the source of truth for built-in provider behavior and presentation metadata. Do not duplicate provider tables in views or tests.
 - `InferenceRepository` persists providers and local/installable models. Provider-discovered models remain transient unless persistence is deliberately redesigned.
 - Treat `persistedModels`, `remoteModels`, and their combined available-model view as distinct concepts at call sites.
-- Provider API keys go through the credential client/Keychain path. ChatGPT/Codex OAuth is the exception: Ironsmith owns PKCE and refreshes the private `CODEX_HOME` `auth.json` that the bundled CLI shares. Never log or send those tokens through the backend.
+- Provider API keys go through the credential client/Keychain path. ChatGPT/Codex OAuth is the exception: Anvil owns PKCE and refreshes the private `CODEX_HOME` `auth.json` that the bundled CLI shares. Never log or send those tokens through the backend.
 - Provider-specific discovery belongs in `RemoteModelClient`; provider-to-model-wrapper construction belongs in `LanguageModelClient`.
 - Custom OpenAI-compatible providers persist their API variant. Keep transport-aware Codex support, model-family detection, automatic agent routing, and reasoning capability decisions in their centralized inference helpers rather than views.
 - User generation preferences and selected-model persistence belong in their dedicated stores, not provider records or views.
 
 ## Agent Pipeline
 
-- The active runtime is single-file: the model creates or edits only `Sources/<ExecutableName>/ContentView.swift`. Ironsmith owns `Package.swift` and the fixed app entry source.
+- The active runtime is single-file: the model creates or edits only `Sources/<ExecutableName>/ContentView.swift`. Anvil owns `Package.swift` and the fixed app entry source.
 - Spark, Flame, and Codex are first-class coding-agent choices on one preference axis. Automatic selection is resolved centrally from provider transport, model family, operation, and source context.
-- Generated tools are SwiftPM packages under `IronsmithPaths.toolsDirectory`. Derive package files and metadata paths through `ToolPackageLayout`; do not reconstruct them at call sites.
+- Generated tools are SwiftPM packages under `AnvilPaths.toolsDirectory`. Derive package files and metadata paths through `ToolPackageLayout`; do not reconstruct them at call sites.
 - Create flow prepares metadata and icon assets early, generates source, cleans/formats it, compiles and repairs it, then builds the internal app bundle.
 - Edit flow must preserve the original source and settings until the edited package builds successfully. Keep version staging and restore behavior in `ToolVersionBackupClient`.
 - `ContentViewSourceCleanup` owns model-output normalization. Compiler-driven deterministic repairs should be general Swift/SwiftUI fixes; model repairs must remain validated changes confined to `ContentView.swift`.
 - Keep repair thresholds and strategy selection centralized in `ToolGenerationRepairPolicy`, `ToolRepairStrategy`, and inference model selection logic.
-- Codex runs through the bundled CLI after prompt refinement, owns its build/repair attempts, and does not enter the Spark/Flame repair loop. Ironsmith must still restore protected files, validate `ContentView.swift`, and perform final build verification.
+- Codex runs through the bundled CLI after prompt refinement, owns its build/repair attempts, and does not enter the Spark/Flame repair loop. Anvil must still restore protected files, validate `ContentView.swift`, and perform final build verification.
 - Codex stdout is persisted as tool-local JSONL under `.codex/` and tailed for diagnostics and Agent Output. Keep raw command output out of diagnostics, preserve transcript/session metadata, and avoid retaining complete transcripts in memory.
 - `ToolAppBundleClient` owns internal/exported app bundle construction, signing, entitlements, icon copying, verification, replacement, and launch support. Do not duplicate bundle assembly elsewhere.
 - Preserve cancellation/resume state through the generation lifecycle. `ToolLibraryStore` is responsible for reconciling persisted tool state with generation results and failures.
@@ -73,13 +73,13 @@
 
 ## Persistence And Files
 
-- Production app data lives under `~/.ironsmith/`; use `IronsmithPaths` instead of hard-coded paths.
-- The SwiftData store is `~/.ironsmith/db/ironsmith.sqlite`. Startup preparation imports the legacy Application Support store only when needed, preserves the source, and snapshots the destination before SwiftData opens it.
+- Production app data lives under `~/.anvil/`; use `AnvilPaths` instead of hard-coded paths.
+- The SwiftData store is `~/.anvil/db/anvil.sqlite`. Startup preparation imports the legacy Application Support store only when needed, preserves the source, and snapshots the destination before SwiftData opens it.
 - Startup database backups include SQLite companion files and retain the three newest completed snapshots. Never silently delete or replace a failed user store.
-- Use `IronsmithModelContainerFactory.make(isRunningTests: true)` for tests and previews.
+- Use `AnvilModelContainerFactory.make(isRunningTests: true)` for tests and previews.
 - Persisted models are declared inside immutable versioned schema files in `Core/Persistence/Migrations`. `Core/Models` points application code at the current schema through typealiases and extensions.
 - Persist singular SwiftData enum properties directly as their enum types. Use raw-value serialization only for enum collections, such as arrays or sets, that SwiftData cannot persist directly in the required shape.
-- Keep one ordered `IronsmithSchemaMigrationPlan`. For each database change, add a new self-contained schema version and the adjacent migration stage; never mutate a shipped historical schema.
+- Keep one ordered `AnvilSchemaMigrationPlan`. For each database change, add a new self-contained schema version and the adjacent migration stage; never mutate a shipped historical schema.
 - Persisted model names and stored properties are compatibility surfaces. Use SwiftData rename metadata and a migration when changing them.
 - Generated-package file access must remain inside the package root. Preserve the path validation in `ToolPackageLayout` and generation/version-backup helpers.
 

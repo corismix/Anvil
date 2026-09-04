@@ -25,13 +25,13 @@ Xcode, no account, no credits. Bring your own models.
 - No money. No credits, no credit packs, no checkout, no subscriptions.
 - No backend. Anvil talks only to the model providers the user configures.
   There is no Anvil server and no phone-home.
-- No app store. The Ironsmith Store (browse/publish/remix community apps)
+- No app store. The Anvil Store (browse/publish/remix community apps)
   depended on the upstream backend and died with it. Sharing may come back
   later as plain file export/import, never as a hosted service.
 
 ## Modes (target state, milestone 3)
 
-- **Tiny App** - the original Ironsmith loop: one `ContentView.swift`, one
+- **Tiny App** - the original Anvil loop: one `ContentView.swift`, one
   shot, compile-repair harness. Fast, cheap, great for menu bar utilities.
 - **Project** - a real multi-file SwiftPM package (`Sources/App/Views`,
   `Models`, `Services`, ...) that agents can edit across files, with
@@ -47,7 +47,7 @@ Xcode, no account, no credits. Bring your own models.
   their build/repair loop. Anvil feeds them the package, validates output,
   and does final build verification. This is where investment goes.
 
-## Non-negotiables inherited from Ironsmith
+## Non-negotiables inherited from Anvil
 
 - Generated apps are sandboxed and signed; permission planning is automatic.
 - Edit flow never destroys a working app: changes stage, build, then swap.

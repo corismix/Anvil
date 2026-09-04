@@ -16,7 +16,7 @@ compounds on having real per-app history.
 ## Shape (to be validated against the code at execution)
 
 - Generated tools already live as SwiftPM packages under
-  `IronsmithPaths.toolsDirectory` (post-rename: `AnvilPaths`). Each package
+  `AnvilPaths.toolsDirectory` (post-rename: `AnvilPaths`). Each package
   root gets `git init` on creation; the generation pipeline commits at each
   successful stage boundary (generated -> repaired -> built).
 - `ToolVersionBackupClient` (in `Core/AgentPipeline/Runtime/`) currently

@@ -1,9 +1,9 @@
 # Anvil Docs
 
-Anvil is a hard fork of [Ironsmith](https://github.com/Jeidoban/Ironsmith) by
-corismix. Ironsmith is GPL v3; Anvil remains GPL v3 and keeps
-the original copyright and attribution (see `LICENSE` and
-`Ironsmith/Resources/GPLv3.txt`).
+Anvil is a hard fork of [Ironsmith](https://github.com/Jeidoban/Ironsmith)
+(originally by Jade Westover and contributors), maintained by corismix.
+Ironsmith is GPL v3; Anvil remains GPL v3 and keeps the original copyright
+and attribution (see `LICENSE` and `Anvil/Resources/GPLv3.txt`).
 
 These docs are the working truth for the fork. Specs and plans are written
 before code and updated when reality diverges.

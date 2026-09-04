@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for contributing to Ironsmith! I really appreciate you taking the time to contribute to this project. Please keep your changes focused and always remember to write tests!
+Thanks for contributing to Anvil! I really appreciate you taking the time to contribute to this project. Please keep your changes focused and always remember to write tests!
 
 ## AI Generated Code
 
-Agent written code has become standard in modern software development, so it's expected that your contributions will be AI generated. Even Ironsmith itself was almost entierly written with Codex. That being said I personally reviewed every line of code it wrote and was the ultimate decision maker with what it produced. I just ask that you do the same with any code you contribute to the project. Thanks for understanding!
+Agent written code has become standard in modern software development, so it's expected that your contributions will be AI generated. Even Anvil itself was almost entierly written with Codex. That being said I personally reviewed every line of code it wrote and was the ultimate decision maker with what it produced. I just ask that you do the same with any code you contribute to the project. Thanks for understanding!
 
 ## Setup
 
@@ -48,7 +48,7 @@ script/test.sh
 For bug reports, include:
 
 - macOS version.
-- Ironsmith version or commit.
+- Anvil version or commit.
 - Model/provider used, if the issue involves generation.
 - Steps to reproduce.
 - Expected and actual behavior.

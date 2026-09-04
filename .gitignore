@@ -26,5 +26,5 @@ Config/*.env
 !Config/.env.example
 script/*.local.sh
 
-ironsmith-backend/
+anvil-backend/
 .codex/environments/environment.toml

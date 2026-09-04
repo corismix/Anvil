@@ -2,13 +2,13 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Debug Ironsmith",
+            "name": "Debug Anvil",
             "type": "swift",
             "request": "launch",
-            "program": "${workspaceFolder}/dist/debug/Ironsmith.app/Contents/MacOS/Ironsmith",
+            "program": "${workspaceFolder}/dist/debug/Anvil.app/Contents/MacOS/Anvil",
             "args": [],
             "cwd": "${workspaceFolder}",
-            "preLaunchTask": "Ironsmith: Build Debug App"
+            "preLaunchTask": "Anvil: Build Debug App"
         }
     ]
 }

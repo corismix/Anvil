@@ -5,4 +5,4 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 cd "$REPO_ROOT"
-IRONSMITH_RUNNING_TESTS=1 swift test "$@"
+ANVIL_RUNNING_TESTS=1 swift test "$@"

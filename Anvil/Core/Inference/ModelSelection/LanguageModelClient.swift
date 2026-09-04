@@ -1,0 +1,245 @@
+import AnyLanguageModel
+import Foundation
+
+struct LanguageModelClient {
+    var makeLanguageModel: (ModelConfig, ProviderConfig?) async throws -> any LanguageModel
+}
+
+nonisolated struct OpenAICodexGenerationConfiguration: Equatable, Sendable {
+    let headers: [String: String]
+    let usesResponsesLite: Bool
+}
+
+extension LanguageModelClient {
+    static func live(
+        credentialClient: CredentialClient,
+        localModelClient: LocalModelClient,
+        openAICodexAuthClient: OpenAICodexAuthClient = .unconfigured
+    ) -> Self {
+        Self(
+            makeLanguageModel: { model, provider in
+                try await Self.makeLiveLanguageModel(
+                    for: model,
+                    provider: provider,
+                    credentialClient: credentialClient,
+                    localModelClient: localModelClient,
+                    openAICodexAuthClient: openAICodexAuthClient
+                )
+            }
+        )
+    }
+
+    private static func makeLiveLanguageModel(
+        for model: ModelConfig,
+        provider: ProviderConfig?,
+        credentialClient: CredentialClient,
+        localModelClient _: LocalModelClient,
+        openAICodexAuthClient: OpenAICodexAuthClient
+    ) async throws -> any LanguageModel {
+        switch model.source {
+        case .appleFoundation:
+            return SystemLanguageModel.default
+
+        case .mlx:
+            throw LanguageModelClientError.unsupportedLegacyLocalModel
+
+        case .remote:
+            guard let provider else {
+                throw LanguageModelClientError.missingProvider
+            }
+
+            switch provider.kind {
+            case .openAI:
+                if let codexModelIdentifier = model.openAICodexRawIdentifier {
+                    let credential = try await openAICodexAuthClient.validCredential()
+                    let configuration = try await codexGenerationConfiguration(
+                        credential: credential,
+                        modelIdentifier: codexModelIdentifier,
+                        authClient: openAICodexAuthClient
+                    )
+                    return OpenAICodexLanguageModel(
+                        base: OpenAILanguageModel(
+                            baseURL: OpenAICodexBackend.backendBaseURL,
+                            apiKey: credential.accessToken,
+                            model: codexModelIdentifier,
+                            apiVariant: .responses,
+                            session: remoteGenerationSession(
+                                for: OpenAICodexBackend.backendBaseURL,
+                                headers: configuration.headers
+                            )
+                        ),
+                        usesResponsesLite: configuration.usesResponsesLite
+                    )
+                }
+
+                let token = try apiKey(for: provider, credentialClient: credentialClient)
+                let baseURL = try providerBaseURL(provider)
+                return OpenAILanguageModel(
+                    baseURL: baseURL,
+                    apiKey: token,
+                    model: model.identifier,
+                    apiVariant: .responses,
+                    session: remoteGenerationSession(for: baseURL)
+                )
+
+            case .customOpenAICompatible:
+                let token = try optionalAPIKey(for: provider, credentialClient: credentialClient)
+                let baseURL = try providerBaseURL(provider)
+                return OpenAILanguageModel(
+                    baseURL: baseURL,
+                    apiKey: token,
+                    model: model.identifier,
+                    apiVariant: provider.openAICompatibleAPIVariant.openAILanguageModelVariant,
+                    session: remoteGenerationSession(for: baseURL)
+                )
+
+            case .ollama:
+                let token = try optionalAPIKey(for: provider, credentialClient: credentialClient)
+                let baseURL = try providerBaseURL(provider)
+                return OllamaLanguageModel(
+                    baseURL: baseURL,
+                    model: model.identifier,
+                    session: remoteGenerationSession(
+                        for: baseURL,
+                        headers: token.isEmpty ? [:] : ["Authorization": "Bearer \(token)"]
+                    )
+                )
+
+            case .anthropic:
+                let token = try apiKey(for: provider, credentialClient: credentialClient)
+                let baseURL = try providerBaseURL(provider)
+                return AnthropicLanguageModel(
+                    baseURL: baseURL,
+                    apiKey: token,
+                    model: model.identifier,
+                    session: remoteGenerationSession(for: baseURL)
+                )
+
+            case .gemini:
+                let token = try apiKey(for: provider, credentialClient: credentialClient)
+                let baseURL = try providerBaseURL(provider)
+                return GeminiLanguageModel(
+                    baseURL: baseURL,
+                    apiKey: token,
+                    model: model.identifier,
+                    session: remoteGenerationSession(for: baseURL)
+                )
+
+            case .local, .anvil:
+                throw LanguageModelClientError.missingProvider
+            }
+        }
+    }
+
+    nonisolated static func codexGenerationConfiguration(
+        credential: OpenAICodexCredential,
+        modelIdentifier: String,
+        authClient: OpenAICodexAuthClient
+    ) async throws -> OpenAICodexGenerationConfiguration {
+        var headers = [
+            "originator": OpenAICodexBackend.originator,
+            "User-Agent": OpenAICodexBackend.userAgent,
+        ]
+        if let accountID = credential.accountID, !accountID.isEmpty {
+            headers["ChatGPT-Account-Id"] = accountID
+        }
+        let usesResponsesLite = try await authClient.modelMetadata(modelIdentifier)?.usesResponsesLite == true
+        if usesResponsesLite {
+            headers[OpenAICodexBackend.responsesLiteHeader] = "true"
+        }
+        return OpenAICodexGenerationConfiguration(
+            headers: headers,
+            usesResponsesLite: usesResponsesLite
+        )
+    }
+
+    private static func providerBaseURL(_ provider: ProviderConfig) throws -> URL {
+        let descriptor = ProviderCatalog.descriptor(for: provider.kind)
+        let baseURLString = provider.baseURLString.isEmpty
+            ? descriptor?.defaultBaseURLString ?? ""
+            : provider.baseURLString
+        guard let baseURL = try? ProviderBaseURLValidator.validatedURL(from: baseURLString) else {
+            throw LanguageModelClientError.invalidProviderURL
+        }
+        return baseURL
+    }
+
+    private static func remoteGenerationSession(for baseURL: URL, headers: [String: String] = [:]) -> URLSession {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        if !headers.isEmpty {
+            configuration.httpAdditionalHeaders = headers
+        }
+
+        configuration.timeoutIntervalForRequest = 600
+        configuration.timeoutIntervalForResource = 1_800
+
+        return URLSession(configuration: configuration)
+    }
+
+    private static func apiKey(
+        for provider: ProviderConfig,
+        credentialClient: CredentialClient
+    ) throws -> String {
+        guard let reference = provider.apiKeyReference else {
+            throw LanguageModelClientError.missingAPIKey
+        }
+        guard let apiKey = try credentialClient.loadAPIKey(reference), !apiKey.isEmpty else {
+            throw LanguageModelClientError.missingAPIKey
+        }
+        return apiKey
+    }
+
+    private static func optionalAPIKey(
+        for provider: ProviderConfig,
+        credentialClient: CredentialClient
+    ) throws -> String {
+        guard let reference = provider.apiKeyReference else {
+            return ""
+        }
+        return try credentialClient.loadAPIKey(reference) ?? ""
+    }
+}
+
+private extension OpenAICompatibleAPIVariant {
+    var openAILanguageModelVariant: OpenAILanguageModel.APIVariant {
+        switch self {
+        case .chatCompletions:
+            return .chatCompletions
+        case .responses:
+            return .responses
+        }
+    }
+}
+
+private extension URL {
+    var isLoopback: Bool {
+        guard let host = host(percentEncoded: false)?.lowercased() else {
+            return false
+        }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
+    }
+}
+
+enum LanguageModelClientError: LocalizedError {
+    case foundationModelsUnavailable
+    case invalidProviderURL
+    case unsupportedLegacyLocalModel
+    case missingAPIKey
+    case missingProvider
+
+    var errorDescription: String? {
+        switch self {
+        case .foundationModelsUnavailable:
+            return "Apple Foundation Model is unavailable on this system."
+        case .invalidProviderURL:
+            return "The provider URL is invalid."
+        case .unsupportedLegacyLocalModel:
+            return "This legacy local AI model is no longer supported."
+        case .missingAPIKey:
+            return "This provider is missing an API key."
+        case .missingProvider:
+            return "The selected AI model is missing its provider configuration."
+        }
+    }
+}

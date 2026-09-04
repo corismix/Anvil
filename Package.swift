@@ -12,12 +12,12 @@ let swiftSettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "Ironsmith",
+    name: "Anvil",
     platforms: [
         .macOS("26.0"),
     ],
     products: [
-        .executable(name: "Ironsmith", targets: ["Ironsmith"]),
+        .executable(name: "Anvil", targets: ["Anvil"]),
     ],
     dependencies: [
         .package(url: "https://github.com/huggingface/AnyLanguageModel", from: "0.8.0"),
@@ -26,13 +26,13 @@ let package = Package(
     ],
     targets: [
         .executableTarget(
-            name: "Ironsmith",
+            name: "Anvil",
             dependencies: [
                 .product(name: "AnyLanguageModel", package: "AnyLanguageModel"),
                 .product(name: "JSONSchema", package: "JSONSchema"),
                 .product(name: "AcknowList", package: "AcknowList"),
             ],
-            path: "Ironsmith",
+            path: "Anvil",
             exclude: [
                 "Info.plist",
                 "Resources",
@@ -45,13 +45,13 @@ let package = Package(
             swiftSettings: swiftSettings
         ),
         .testTarget(
-            name: "IronsmithTests",
+            name: "AnvilTests",
             dependencies: [
-                "Ironsmith",
+                "Anvil",
                 .product(name: "AnyLanguageModel", package: "AnyLanguageModel"),
                 .product(name: "AcknowList", package: "AcknowList"),
             ],
-            path: "IronsmithTests",
+            path: "AnvilTests",
             swiftSettings: swiftSettings
         ),
     ]

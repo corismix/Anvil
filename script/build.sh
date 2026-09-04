@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="Ironsmith"
-BUNDLE_IDENTIFIER="com.jeidoban.Ironsmith"
+APP_NAME="Anvil"
+BUNDLE_IDENTIFIER="com.corismix.anvil"
 MINIMUM_MACOS_VERSION="26.0"
 
 COMMAND="build"
@@ -17,17 +17,17 @@ usage() {
   cat <<USAGE
 Usage: script/build.sh [build|run] [--release] [options]
 
-Builds the SwiftPM executable and stages dist/debug/Ironsmith.app or dist/release-<arch>/Ironsmith.app.
+Builds the SwiftPM executable and stages dist/debug/Anvil.app or dist/release-<arch>/Anvil.app.
 
 Environment:
   Build-time backend values are read from Config/.env by default.
-  IRONSMITH_CODEX_VERSION pins the bundled Codex version. Defaults to latest.
+  ANVIL_CODEX_VERSION pins the bundled Codex version. Defaults to latest.
 
 Options:
   --release                     Build with SwiftPM release configuration and Developer ID signing
   --arch <native|arm64|x86_64>  Build architecture. Release builds require arm64 or x86_64.
   --sign-identity               Override the signing identity selected for this build. Required for release builds.
-  --codex-version <version>     Override IRONSMITH_CODEX_VERSION for this build
+  --codex-version <version>     Override ANVIL_CODEX_VERSION for this build
   --version                     Override CFBundleShortVersionString in Info.plist
   --build-number                Override CFBundleVersion in Info.plist
   -h, --help                    Show this help
@@ -151,8 +151,8 @@ MACOS_URL="$CONTENTS_URL/MacOS"
 RESOURCES_URL="$CONTENTS_URL/Resources"
 INFO_PLIST_URL="$CONTENTS_URL/Info.plist"
 ASSET_INFO_PLIST_URL="$RESOURCES_URL/asset-info.plist"
-APP_RESOURCES_SOURCE_URL="$REPO_ROOT/Ironsmith/Resources"
-CODEX_CACHE_ROOT="$REPO_ROOT/.build/ironsmith-codex"
+APP_RESOURCES_SOURCE_URL="$REPO_ROOT/Anvil/Resources"
+CODEX_CACHE_ROOT="$REPO_ROOT/.build/anvil-codex"
 CODEX_VENDOR_RESOURCE_URL="$RESOURCES_URL/Codex/vendor"
 CODEX_ARM64_TRIPLE="aarch64-apple-darwin"
 CODEX_X64_TRIPLE="x86_64-apple-darwin"
@@ -167,34 +167,34 @@ source_env_file() {
   set +a
 }
 
-HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY=false
-HAS_ENV_IRONSMITH_CODEX_VERSION=false
+HAS_ENV_ANVIL_DEV_SIGN_IDENTITY=false
+HAS_ENV_ANVIL_CODEX_VERSION=false
 
-if [[ "${IRONSMITH_DEV_SIGN_IDENTITY+x}" == x ]]; then
-  HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY=true
-  ENV_IRONSMITH_DEV_SIGN_IDENTITY="$IRONSMITH_DEV_SIGN_IDENTITY"
+if [[ "${ANVIL_DEV_SIGN_IDENTITY+x}" == x ]]; then
+  HAS_ENV_ANVIL_DEV_SIGN_IDENTITY=true
+  ENV_ANVIL_DEV_SIGN_IDENTITY="$ANVIL_DEV_SIGN_IDENTITY"
 fi
 
-if [[ "${IRONSMITH_CODEX_VERSION+x}" == x ]]; then
-  HAS_ENV_IRONSMITH_CODEX_VERSION=true
-  ENV_IRONSMITH_CODEX_VERSION="$IRONSMITH_CODEX_VERSION"
+if [[ "${ANVIL_CODEX_VERSION+x}" == x ]]; then
+  HAS_ENV_ANVIL_CODEX_VERSION=true
+  ENV_ANVIL_CODEX_VERSION="$ANVIL_CODEX_VERSION"
 fi
 
 source_env_file "$CONFIG_DIR/.env"
 
-if [[ "$HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY" == true ]]; then
-  IRONSMITH_DEV_SIGN_IDENTITY="$ENV_IRONSMITH_DEV_SIGN_IDENTITY"
+if [[ "$HAS_ENV_ANVIL_DEV_SIGN_IDENTITY" == true ]]; then
+  ANVIL_DEV_SIGN_IDENTITY="$ENV_ANVIL_DEV_SIGN_IDENTITY"
 fi
 
-if [[ "$HAS_ENV_IRONSMITH_CODEX_VERSION" == true ]]; then
-  IRONSMITH_CODEX_VERSION="$ENV_IRONSMITH_CODEX_VERSION"
+if [[ "$HAS_ENV_ANVIL_CODEX_VERSION" == true ]]; then
+  ANVIL_CODEX_VERSION="$ENV_ANVIL_CODEX_VERSION"
 fi
 
-IRONSMITH_DEV_SIGN_IDENTITY="${IRONSMITH_DEV_SIGN_IDENTITY:--}"
-IRONSMITH_CODEX_VERSION="${IRONSMITH_CODEX_VERSION:-latest}"
+ANVIL_DEV_SIGN_IDENTITY="${ANVIL_DEV_SIGN_IDENTITY:--}"
+ANVIL_CODEX_VERSION="${ANVIL_CODEX_VERSION:-latest}"
 
 if [[ -n "$CODEX_VERSION_OVERRIDE" ]]; then
-  IRONSMITH_CODEX_VERSION="$CODEX_VERSION_OVERRIDE"
+  ANVIL_CODEX_VERSION="$CODEX_VERSION_OVERRIDE"
 fi
 
 resolve_sign_identity() {
@@ -213,7 +213,7 @@ resolve_sign_identity() {
       exit 1
     fi
   else
-    SIGN_IDENTITY="${SIGN_IDENTITY_OVERRIDE:-$IRONSMITH_DEV_SIGN_IDENTITY}"
+    SIGN_IDENTITY="${SIGN_IDENTITY_OVERRIDE:-$ANVIL_DEV_SIGN_IDENTITY}"
     if [[ -z "$SIGN_IDENTITY" ]]; then
       SIGN_IDENTITY="-"
     fi
@@ -253,9 +253,9 @@ resolve_codex_version() {
   require_command npm
 
   local resolved_version
-  resolved_version="$(npm view "@openai/codex@$IRONSMITH_CODEX_VERSION" version --silent)"
+  resolved_version="$(npm view "@openai/codex@$ANVIL_CODEX_VERSION" version --silent)"
   if [[ -z "$resolved_version" ]]; then
-    echo "Could not resolve @openai/codex@$IRONSMITH_CODEX_VERSION." >&2
+    echo "Could not resolve @openai/codex@$ANVIL_CODEX_VERSION." >&2
     exit 1
   fi
 
@@ -500,7 +500,7 @@ mkdir -p "$MACOS_URL" "$RESOURCES_URL"
 cp "$EXECUTABLE_URL" "$MACOS_URL/$APP_NAME"
 chmod 755 "$MACOS_URL/$APP_NAME"
 
-cp "$REPO_ROOT/Ironsmith/Info.plist" "$INFO_PLIST_URL"
+cp "$REPO_ROOT/Anvil/Info.plist" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_IDENTIFIER" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MINIMUM_MACOS_VERSION" "$INFO_PLIST_URL"
