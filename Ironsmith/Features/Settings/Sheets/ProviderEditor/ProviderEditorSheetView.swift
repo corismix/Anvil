@@ -1,9 +1,7 @@
-import Supabase
 import SwiftUI
 
 struct ProviderEditorSheetView: View {
     @Environment(InferenceStore.self) private var inferenceStore
-    @Environment(\.scenePhase) private var scenePhase
     let provider: ProviderConfig
     @Environment(\.dismiss) private var dismiss
 
@@ -12,18 +10,12 @@ struct ProviderEditorSheetView: View {
     @State private var baseURLString = ""
     @State private var openAICompatibleAPIVariant: OpenAICompatibleAPIVariant = .chatCompletions
     @State private var isConfirmingDelete = false
-    @State private var isShowingCreditPacks = false
-    @State private var isSigningOut = false
     @State private var isSigningInToChatGPT = false
     @State private var isSigningOutOfChatGPT = false
     let onNestedSheetPresentationChange: (Bool) -> Void
 
     private var isCustomOpenAICompatible: Bool {
         provider.kind == .customOpenAICompatible
-    }
-
-    private var isIronsmith: Bool {
-        provider.kind == .ironsmith
     }
 
     private var isOpenAI: Bool {
@@ -40,12 +32,10 @@ struct ProviderEditorSheetView: View {
 
     init(
         provider: ProviderConfig,
-        showsCreditPacksOnAppear: Bool = false,
         onNestedSheetPresentationChange: @escaping (Bool) -> Void = { _ in }
     ) {
         self.provider = provider
         self.onNestedSheetPresentationChange = onNestedSheetPresentationChange
-        _isShowingCreditPacks = State(initialValue: showsCreditPacksOnAppear)
     }
 
     var body: some View {
@@ -59,18 +49,6 @@ struct ProviderEditorSheetView: View {
                         LocalModelManagementView(provider: provider)
                     } header: {
                         Text("AI Models")
-                    }
-                } else if isIronsmith {
-                    Section {
-                        LabeledContent("Available Credits") {
-                            Text(ironsmithBalanceText)
-                        }
-
-                        Button("Buy Credits") {
-                            isShowingCreditPacks = true
-                        }
-                    } header: {
-                        Text("Billing")
                     }
                 } else if isOpenAI {
                     openAIAuthenticationSections
@@ -122,13 +100,7 @@ struct ProviderEditorSheetView: View {
         }
         .safeAreaInset(edge: .bottom) {
             HStack {
-                if isIronsmith {
-                    Button(isSigningOut ? "Signing Out..." : "Sign Out") {
-                        signOut()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isSigningOut)
-                } else if provider.isRemovable {
+                if provider.isRemovable {
                     Button("Delete Provider", role: .destructive) {
                         isConfirmingDelete = true
                     }
@@ -142,7 +114,7 @@ struct ProviderEditorSheetView: View {
                     dismiss()
                 }
 
-                if provider.kind != .local && !isIronsmith {
+                if provider.kind != .local {
                     Button("Save") {
                         Task {
                             let didSave = await inferenceStore.saveProviderEdits(
@@ -170,49 +142,19 @@ struct ProviderEditorSheetView: View {
         }
         .frame(minWidth: 540, minHeight: 430)
         .onAppear {
-            onNestedSheetPresentationChange(isShowingCreditPacks)
             apiKey = inferenceStore.apiKey(for: provider)
             displayName = provider.displayName
             baseURLString = provider.baseURLString
             openAICompatibleAPIVariant = provider.openAICompatibleAPIVariant
-            if isIronsmith {
-                inferenceStore.refreshIronsmithSession()
-            }
             if isOpenAI {
                 inferenceStore.refreshOpenAICodexCredential()
             }
         }
-        .task(id: provider.identifier) {
-            if isIronsmith {
-                await inferenceStore.refreshIronsmithAccountSummary()
-            }
-        }
-        .onChange(of: scenePhase) { _, phase in
-            guard isIronsmith, phase == .active else { return }
-            Task {
-                await inferenceStore.refreshIronsmithAccountSummary()
-            }
-        }
-        .onChange(of: isShowingCreditPacks) { _, isPresented in
-            onNestedSheetPresentationChange(isPresented)
-        }
         .onDisappear {
             onNestedSheetPresentationChange(false)
         }
+    }
         .textFieldStyle(.roundedBorder)
-        .sheet(isPresented: $isShowingCreditPacks, onDismiss: {
-            Task {
-                await inferenceStore.refreshIronsmithAccountSummary()
-            }
-        }) {
-            IronsmithCreditPackPurchaseSheetView()
-                .environment(inferenceStore)
-                .alert("Settings Error", isPresented: errorAlertBinding) {
-                    Button("OK", role: .cancel) {}
-                } message: {
-                    Text(inferenceStore.presentedErrorMessage ?? "")
-                }
-        }
         .confirmationDialog(
             "Delete \(provider.displayName)?",
             isPresented: $isConfirmingDelete
@@ -281,18 +223,6 @@ struct ProviderEditorSheetView: View {
         }
     }
 
-    private var ironsmithBalanceText: String {
-        guard let credits = remainingIronsmithCreditBalance else {
-            return "Unknown"
-        }
-
-        return credits == 1 ? "1 credit" : "\(credits) credits"
-    }
-
-    private var remainingIronsmithCreditBalance: Int? {
-        inferenceStore.ironsmithAccountSummary?.credits.balanceCredits
-    }
-
     private var openAIChatGPTStatusText: String {
         inferenceStore.openAICodexCredential?.statusText ?? "Not signed in"
     }
@@ -303,21 +233,6 @@ struct ProviderEditorSheetView: View {
 
     private var openAIChatGPTSignOutTitle: String {
         isSigningOutOfChatGPT ? "Signing Out..." : "Sign Out"
-    }
-
-    private func signOut() {
-        guard !isSigningOut else { return }
-
-        isSigningOut = true
-        Task {
-            let didSignOut = await inferenceStore.signOutIronsmithProvider(provider)
-            await MainActor.run {
-                isSigningOut = false
-                if didSignOut {
-                    dismiss()
-                }
-            }
-        }
     }
 
     private func signInWithOpenAIChatGPT() {

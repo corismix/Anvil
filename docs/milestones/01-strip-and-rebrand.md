@@ -77,10 +77,10 @@ Persistence compatibility:
 - `IronsmithPaths` -> `AnvilPaths`, data root `~/.ironsmith` -> `~/.anvil`.
   Startup migration: if `~/.anvil` is absent and `~/.ironsmith` exists,
   move it (rename, not copy) before SwiftData opens. Log the move.
-- `NSHumanReadableCopyright` keeps Jade Westover; add Casey Mould /
+- `NSHumanReadableCopyright` keeps Jade Westover; add corismix /
   Anvil contributors line where a second line is natural (README, About).
 - Repo rename corismix/Ironsmith -> corismix/Anvil happens on GitHub after
-  push (Casey action).
+  push (corismix action).
 
 ## Verification
 

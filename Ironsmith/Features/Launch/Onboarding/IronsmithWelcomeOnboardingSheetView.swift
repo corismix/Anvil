@@ -1,13 +1,10 @@
-import AuthenticationServices
 import SwiftUI
 
 struct IronsmithWelcomeOnboardingSheetView: View {
     @Environment(InferenceStore.self) private var inferenceStore
     @Environment(IronsmithRouteStore.self) private var routeStore
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
 
     let onComplete: () -> Void
-    @State private var isSigningIn = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -28,7 +25,6 @@ struct IronsmithWelcomeOnboardingSheetView: View {
                     onComplete()
                 }
                 .buttonStyle(.link)
-                .disabled(isSigningIn)
 
                 Spacer()
             }
@@ -62,23 +58,6 @@ struct IronsmithWelcomeOnboardingSheetView: View {
             optionDivider
 
             setupOptionRow(
-                title: "Create with ChatGPT, Claude, Gemini and more",
-                subtitle:
-                    "Sign into Ironsmith and make better apps with the latest and greatest AI models.",
-                action: signInWithAppleOAuth,
-                showsProgress: isSigningIn,
-                icon: {
-                    Image("ProviderLogoIronsmith")
-                        .resizable()
-                        .renderingMode(.template)
-                        .scaledToFit()
-                        .frame(width: 40, height: 40)
-                }
-            )
-
-            optionDivider
-
-            setupOptionRow(
                 title: "Use an API key or ChatGPT login",
                 subtitle:
                     "Bring your own API key for OpenAI, Claude or Gemini, or sign in with your ChatGPT account.",
@@ -97,7 +76,6 @@ struct IronsmithWelcomeOnboardingSheetView: View {
         title: String,
         subtitle: String,
         action: @escaping () -> Void,
-        showsProgress: Bool = false,
         @ViewBuilder icon: @escaping () -> Icon
     ) -> some View {
         Button(action: action) {
@@ -121,22 +99,15 @@ struct IronsmithWelcomeOnboardingSheetView: View {
 
                 Spacer(minLength: 12)
 
-                if showsProgress {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Signing in")
-                } else {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .accessibilityHidden(true)
-                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(.vertical, 14)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(isSigningIn)
     }
 
     private var optionDivider: some View {
@@ -149,27 +120,6 @@ struct IronsmithWelcomeOnboardingSheetView: View {
     private func completeWithProvider(_ providerKind: ProviderKind) {
         onComplete()
         routeStore.open(.settings(.addProvider(initialKind: providerKind)))
-    }
-
-    private func signInWithAppleOAuth() {
-        guard !isSigningIn else { return }
-        isSigningIn = true
-
-        Task {
-            let didSignIn = await inferenceStore.signInToIronsmithWithAppleOAuth { @MainActor url in
-                try await webAuthenticationSession.authenticate(
-                    using: url,
-                    callbackURLScheme: IronsmithOAuthRedirect.appCallbackScheme
-                )
-            }
-
-            await MainActor.run {
-                isSigningIn = false
-                guard didSignIn else { return }
-                inferenceStore.selectPreferredIronsmithModel()
-                onComplete()
-            }
-        }
     }
 
     private var errorAlertBinding: Binding<Bool> {

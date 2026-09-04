@@ -450,7 +450,7 @@ struct ToolGenerationPlanningClient: Sendable {
         for provider: ToolImageGenerationProvider
     ) -> String {
         switch provider {
-        case .gemini, .openAI, .ironsmith:
+        case .gemini, .openAI:
             return "Hosted image generation; visual concept only."
         case .automatic, .imagePlayground, .disabled:
             return "Compact Image Playground-compatible concept."
@@ -461,7 +461,7 @@ struct ToolGenerationPlanningClient: Sendable {
         for provider: ToolImageGenerationProvider
     ) -> String {
         switch provider {
-        case .gemini, .openAI, .ironsmith:
+        case .gemini, .openAI:
             return """
                 - Write one concise visual concept of 8 to 20 words.
                 - Describe only the concrete subject, any meaningful secondary object, and how they relate or are arranged.

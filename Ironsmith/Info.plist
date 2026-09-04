@@ -35,12 +35,6 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>IronsmithAPIBaseURL</key>
-	<string></string>
-	<key>IronsmithSupabasePublishableKey</key>
-	<string></string>
-	<key>IronsmithSupabaseURL</key>
-	<string></string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.utilities</string>
 	<key>LSMinimumSystemVersion</key>

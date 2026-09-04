@@ -95,17 +95,9 @@ private struct ModelPickerRowView: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                if let estimatedCreditsText {
-                    Text(estimatedCreditsText)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text(model.sourceLabel(provider: provider))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            Text(model.sourceLabel(provider: provider))
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             if isSelected {
                 Image(systemName: "checkmark")
@@ -123,17 +115,6 @@ private struct ModelPickerRowView: View {
         .contentShape(Rectangle())
     }
 
-    private var estimatedCreditsText: String? {
-        guard let estimatedToolCredits = ToolLibraryCreditEstimate.creditsRange(
-            model: model,
-            provider: provider
-        )
-        else {
-            return nil
-        }
-
-        return "\(estimatedToolCredits.lowerBound.formatted())-\(estimatedToolCredits.upperBound.formatted()) credits/app"
-    }
 }
 
 extension ModelConfig {

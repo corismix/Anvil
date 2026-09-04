@@ -20,10 +20,7 @@ struct SettingsWindowView: View {
         Form {
             SettingsProvidersSectionView(
                 onAddProvider: { presentedSheet = .addProvider(initialKind: nil) },
-                onEditProvider: { presentedSheet = .editProvider($0, showsCreditPacks: false) }
-            )
-            SettingsAccountSectionView(
-                onManageAccount: { presentedSheet = .manageAccount }
+                onEditProvider: { presentedSheet = .editProvider($0) }
             )
             SettingsPreferencesSectionView()
             #if DEBUG
@@ -35,7 +32,6 @@ struct SettingsWindowView: View {
         .frame(minWidth: 680, minHeight: 720)
         .task {
             await inferenceStore.prepareSettings(modelContext: modelContext)
-            await inferenceStore.refreshIronsmithAccountSummary()
             hasPreparedSettings = true
             consumePendingSettingsRoute()
         }
@@ -86,11 +82,7 @@ struct SettingsWindowView: View {
         case .editProvider(let identifier):
             presentedSheet = inferenceStore.providers
                 .first { $0.identifier == identifier }
-                .map { SettingsPresentedSheet.editProvider($0, showsCreditPacks: false) }
-        case .buyIronsmithCredits:
-            presentedSheet = inferenceStore.providers
-                .first { $0.kind == .ironsmith }
-                .map { SettingsPresentedSheet.editProvider($0, showsCreditPacks: true) }
+                .map { SettingsPresentedSheet.editProvider($0) }
         }
     }
 
@@ -115,7 +107,7 @@ struct SettingsWindowView: View {
 
         presentedSheet = inferenceStore.providers
             .first { $0.identifier == identifier }
-            .map { SettingsPresentedSheet.editProvider($0, showsCreditPacks: false) }
+            .map { SettingsPresentedSheet.editProvider($0) }
     }
 
     private var errorAlertBinding: Binding<Bool> {
@@ -152,20 +144,11 @@ struct SettingsWindowView: View {
                 initialKind: initialKind,
                 onProviderAdded: handleProviderAdded
             )
-        case .editProvider(let provider, let showsCreditPacks):
+        case .editProvider(let provider):
             ProviderEditorSheetView(
                 provider: provider,
-                showsCreditPacksOnAppear: showsCreditPacks,
                 onNestedSheetPresentationChange: { isPresented in
                     isShowingNestedSettingsSheet = isPresented
-                }
-            )
-        case .manageAccount:
-            ManageIronsmithAccountSheetView(
-                onBuyCredits: {
-                    presentedSheet = inferenceStore.providers
-                        .first { $0.kind == .ironsmith }
-                        .map { .editProvider($0, showsCreditPacks: true) }
                 }
             )
         }
@@ -174,17 +157,14 @@ struct SettingsWindowView: View {
 
 private enum SettingsPresentedSheet: Identifiable {
     case addProvider(initialKind: ProviderKind?)
-    case editProvider(ProviderConfig, showsCreditPacks: Bool)
-    case manageAccount
+    case editProvider(ProviderConfig)
 
     var id: String {
         switch self {
         case .addProvider(let initialKind):
             "addProvider.\(initialKind?.rawValue ?? "default")"
-        case .editProvider(let provider, let showsCreditPacks):
-            "editProvider.\(provider.id.uuidString).credits.\(showsCreditPacks)"
-        case .manageAccount:
-            "manageAccount"
+        case .editProvider(let provider):
+            "editProvider.\(provider.id.uuidString)"
         }
     }
 }

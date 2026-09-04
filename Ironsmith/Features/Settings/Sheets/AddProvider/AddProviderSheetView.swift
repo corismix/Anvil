@@ -1,10 +1,8 @@
-import AuthenticationServices
 import SwiftUI
 
 struct AddProviderSheetView: View {
     @Environment(InferenceStore.self) private var inferenceStore
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     private let initialKind: ProviderKind?
     private let onProviderAdded: (ProviderKind) -> Void
 
@@ -22,10 +20,6 @@ struct AddProviderSheetView: View {
 
     private var isOpenAI: Bool {
         selectedChoice?.kind == .openAI
-    }
-
-    private var isIronsmith: Bool {
-        selectedChoice?.kind == .ironsmith
     }
 
     private var isOllama: Bool {
@@ -49,14 +43,7 @@ struct AddProviderSheetView: View {
             VStack(alignment: .leading, spacing: 22) {
                 providerPicker
 
-                if isIronsmith {
-                    IronsmithProviderIntroView(
-                        isSigningIn: isSaving,
-                        action: signInWithAppleOAuth
-                    )
-                } else {
-                    providerConfigurationForm
-                }
+                providerConfigurationForm
             }
             .padding(20)
             .toolbar {
@@ -67,12 +54,10 @@ struct AddProviderSheetView: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    if !isIronsmith {
-                        Button(isSaving ? "Adding..." : "Add") {
-                            saveProvider()
-                        }
-                        .disabled(isAddDisabled)
+                    Button(isSaving ? "Adding..." : "Add") {
+                        saveProvider()
                     }
+                    .disabled(isAddDisabled)
                 }
             }
         }
@@ -185,10 +170,6 @@ struct AddProviderSheetView: View {
         guard !isSaving else { return true }
         guard selectedChoice != nil else { return true }
 
-        if isIronsmith {
-            return true
-        }
-
         if isCustomOpenAICompatible {
             return displayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -214,10 +195,6 @@ struct AddProviderSheetView: View {
         openAICompatibleAPIVariant = .chatCompletions
 
         switch choice.kind {
-        case .ironsmith:
-            displayName = ""
-            baseURLString = ""
-            apiKey = ""
         case .customOpenAICompatible:
             displayName = ""
             baseURLString = ""
@@ -241,30 +218,8 @@ struct AddProviderSheetView: View {
         isSigningInToChatGPT ? "Signing In..." : "Sign In"
     }
 
-    private func signInWithAppleOAuth() {
-        guard !isSaving else { return }
-        isSaving = true
-
-        Task {
-            let didSignIn = await inferenceStore.signInToIronsmithWithAppleOAuth { @MainActor url in
-                try await webAuthenticationSession.authenticate(
-                    using: url,
-                    callbackURLScheme: IronsmithOAuthRedirect.appCallbackScheme
-                )
-            }
-
-            await MainActor.run {
-                isSaving = false
-                if didSignIn {
-                    dismiss()
-                }
-            }
-        }
-    }
-
     private func saveProvider() {
         guard let selectedChoice else { return }
-        guard selectedChoice.kind != .ironsmith else { return }
 
         isSaving = true
         Task {

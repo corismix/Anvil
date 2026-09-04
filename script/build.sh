@@ -8,9 +8,6 @@ MINIMUM_MACOS_VERSION="26.0"
 COMMAND="build"
 RELEASE_BUILD=false
 SIGN_IDENTITY_OVERRIDE=""
-SUPABASE_URL_OVERRIDE=""
-SUPABASE_PUBLISHABLE_KEY_OVERRIDE=""
-API_BASE_URL_OVERRIDE=""
 APP_VERSION_OVERRIDE=""
 APP_BUILD_NUMBER_OVERRIDE=""
 CODEX_VERSION_OVERRIDE=""
@@ -30,9 +27,6 @@ Options:
   --release                     Build with SwiftPM release configuration and Developer ID signing
   --arch <native|arm64|x86_64>  Build architecture. Release builds require arm64 or x86_64.
   --sign-identity               Override the signing identity selected for this build. Required for release builds.
-  --supabase-url                Override IronsmithSupabaseURL in Info.plist
-  --supabase-publishable-key    Override IronsmithSupabasePublishableKey in Info.plist
-  --api-base-url                Override IronsmithAPIBaseURL in Info.plist
   --codex-version <version>     Override IRONSMITH_CODEX_VERSION for this build
   --version                     Override CFBundleShortVersionString in Info.plist
   --build-number                Override CFBundleVersion in Info.plist
@@ -66,18 +60,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --sign-identity)
       SIGN_IDENTITY_OVERRIDE="$(require_value "$1" "${2:-}")"
-      shift 2
-      ;;
-    --supabase-url)
-      SUPABASE_URL_OVERRIDE="$(require_value "$1" "${2:-}")"
-      shift 2
-      ;;
-    --supabase-publishable-key)
-      SUPABASE_PUBLISHABLE_KEY_OVERRIDE="$(require_value "$1" "${2:-}")"
-      shift 2
-      ;;
-    --api-base-url)
-      API_BASE_URL_OVERRIDE="$(require_value "$1" "${2:-}")"
       shift 2
       ;;
     --codex-version)
@@ -185,26 +167,8 @@ source_env_file() {
   set +a
 }
 
-HAS_ENV_IRONSMITH_SUPABASE_URL=false
-HAS_ENV_IRONSMITH_SUPABASE_PUBLISHABLE_KEY=false
-HAS_ENV_IRONSMITH_API_BASE_URL=false
 HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY=false
 HAS_ENV_IRONSMITH_CODEX_VERSION=false
-
-if [[ "${IRONSMITH_SUPABASE_URL+x}" == x ]]; then
-  HAS_ENV_IRONSMITH_SUPABASE_URL=true
-  ENV_IRONSMITH_SUPABASE_URL="$IRONSMITH_SUPABASE_URL"
-fi
-
-if [[ "${IRONSMITH_SUPABASE_PUBLISHABLE_KEY+x}" == x ]]; then
-  HAS_ENV_IRONSMITH_SUPABASE_PUBLISHABLE_KEY=true
-  ENV_IRONSMITH_SUPABASE_PUBLISHABLE_KEY="$IRONSMITH_SUPABASE_PUBLISHABLE_KEY"
-fi
-
-if [[ "${IRONSMITH_API_BASE_URL+x}" == x ]]; then
-  HAS_ENV_IRONSMITH_API_BASE_URL=true
-  ENV_IRONSMITH_API_BASE_URL="$IRONSMITH_API_BASE_URL"
-fi
 
 if [[ "${IRONSMITH_DEV_SIGN_IDENTITY+x}" == x ]]; then
   HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY=true
@@ -218,18 +182,6 @@ fi
 
 source_env_file "$CONFIG_DIR/.env"
 
-if [[ "$HAS_ENV_IRONSMITH_SUPABASE_URL" == true ]]; then
-  IRONSMITH_SUPABASE_URL="$ENV_IRONSMITH_SUPABASE_URL"
-fi
-
-if [[ "$HAS_ENV_IRONSMITH_SUPABASE_PUBLISHABLE_KEY" == true ]]; then
-  IRONSMITH_SUPABASE_PUBLISHABLE_KEY="$ENV_IRONSMITH_SUPABASE_PUBLISHABLE_KEY"
-fi
-
-if [[ "$HAS_ENV_IRONSMITH_API_BASE_URL" == true ]]; then
-  IRONSMITH_API_BASE_URL="$ENV_IRONSMITH_API_BASE_URL"
-fi
-
 if [[ "$HAS_ENV_IRONSMITH_DEV_SIGN_IDENTITY" == true ]]; then
   IRONSMITH_DEV_SIGN_IDENTITY="$ENV_IRONSMITH_DEV_SIGN_IDENTITY"
 fi
@@ -238,23 +190,8 @@ if [[ "$HAS_ENV_IRONSMITH_CODEX_VERSION" == true ]]; then
   IRONSMITH_CODEX_VERSION="$ENV_IRONSMITH_CODEX_VERSION"
 fi
 
-IRONSMITH_SUPABASE_URL="${IRONSMITH_SUPABASE_URL:-}"
-IRONSMITH_SUPABASE_PUBLISHABLE_KEY="${IRONSMITH_SUPABASE_PUBLISHABLE_KEY:-}"
-IRONSMITH_API_BASE_URL="${IRONSMITH_API_BASE_URL:-}"
 IRONSMITH_DEV_SIGN_IDENTITY="${IRONSMITH_DEV_SIGN_IDENTITY:--}"
 IRONSMITH_CODEX_VERSION="${IRONSMITH_CODEX_VERSION:-latest}"
-
-if [[ -n "$SUPABASE_URL_OVERRIDE" ]]; then
-  IRONSMITH_SUPABASE_URL="$SUPABASE_URL_OVERRIDE"
-fi
-
-if [[ -n "$SUPABASE_PUBLISHABLE_KEY_OVERRIDE" ]]; then
-  IRONSMITH_SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY_OVERRIDE"
-fi
-
-if [[ -n "$API_BASE_URL_OVERRIDE" ]]; then
-  IRONSMITH_API_BASE_URL="$API_BASE_URL_OVERRIDE"
-fi
 
 if [[ -n "$CODEX_VERSION_OVERRIDE" ]]; then
   IRONSMITH_CODEX_VERSION="$CODEX_VERSION_OVERRIDE"
@@ -567,9 +504,6 @@ cp "$REPO_ROOT/Ironsmith/Info.plist" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $APP_NAME" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_IDENTIFIER" "$INFO_PLIST_URL"
 /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MINIMUM_MACOS_VERSION" "$INFO_PLIST_URL"
-/usr/libexec/PlistBuddy -c "Set :IronsmithSupabaseURL $IRONSMITH_SUPABASE_URL" "$INFO_PLIST_URL"
-/usr/libexec/PlistBuddy -c "Set :IronsmithSupabasePublishableKey $IRONSMITH_SUPABASE_PUBLISHABLE_KEY" "$INFO_PLIST_URL"
-/usr/libexec/PlistBuddy -c "Set :IronsmithAPIBaseURL $IRONSMITH_API_BASE_URL" "$INFO_PLIST_URL"
 
 if [[ -n "$APP_VERSION_OVERRIDE" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION_OVERRIDE" "$INFO_PLIST_URL"

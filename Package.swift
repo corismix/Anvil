@@ -22,7 +22,6 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/huggingface/AnyLanguageModel", from: "0.8.0"),
         .package(url: "https://github.com/mattt/JSONSchema", from: "1.3.1"),
-        .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.5.1"),
         .package(url: "https://github.com/vtourraine/AcknowList", from: "3.4.2"),
     ],
     targets: [
@@ -31,7 +30,6 @@ let package = Package(
             dependencies: [
                 .product(name: "AnyLanguageModel", package: "AnyLanguageModel"),
                 .product(name: "JSONSchema", package: "JSONSchema"),
-                .product(name: "Supabase", package: "supabase-swift"),
                 .product(name: "AcknowList", package: "AcknowList"),
             ],
             path: "Ironsmith",
@@ -51,7 +49,6 @@ let package = Package(
             dependencies: [
                 "Ironsmith",
                 .product(name: "AnyLanguageModel", package: "AnyLanguageModel"),
-                .product(name: "Supabase", package: "supabase-swift"),
                 .product(name: "AcknowList", package: "AcknowList"),
             ],
             path: "IronsmithTests",

@@ -5,10 +5,6 @@ struct SettingsPreferencesSectionView: View {
     @AppStorage(IronsmithPreferenceKeys.showSandboxOverride) private var showSandboxOverride = false
     @AppStorage(IronsmithPreferenceKeys.diagnosticsLoggingEnabled) private
         var diagnosticsLoggingEnabled = false
-    @AppStorage(IronsmithPreferenceKeys.featureStoreEnabled) private var isStoreFeatureEnabled =
-        false
-    @AppStorage(IronsmithPreferenceKeys.generatesIdentityForNewRemixes) private
-        var generatesIdentityForNewRemixes = true
     @State private var isConfirmingUnsandboxedTools = false
 
     var body: some View {
@@ -30,20 +26,6 @@ struct SettingsPreferencesSectionView: View {
                 Text("Disabling can sometimes improve success rates of smaller AI models.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-
-            if isStoreFeatureEnabled {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle(
-                        "Generate a new name and icon for remixes",
-                        isOn: $generatesIdentityForNewRemixes
-                    )
-                    .toggleStyle(.switch)
-
-                    Text("Applies when you edit a downloaded app for the first time.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Toggle("Allow unsandboxed apps", isOn: sandboxOverrideBinding)

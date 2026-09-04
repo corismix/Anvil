@@ -8,6 +8,17 @@ enum AppDataBootstrapper {
 
         let providers = try context.fetch(FetchDescriptor<ProviderConfig>())
 
+        // Pre-fork databases may still hold the removed backend provider and its
+        // remote models. Delete them so nothing references the dead service.
+        let removedBackendProviderIdentifiers = [ProviderKind.ironsmith.rawValue]
+        for provider in providers where removedBackendProviderIdentifiers.contains(provider.identifier) {
+            context.delete(provider)
+        }
+        let allModels = try context.fetch(FetchDescriptor<ModelConfig>())
+        for model in allModels where removedBackendProviderIdentifiers.contains(model.providerIdentifier) {
+            context.delete(model)
+        }
+
         if !providers.contains(where: { $0.identifier == ProviderConfig.localProviderIdentifier }) {
             let provider = ProviderCatalog.makeProvider(for: .local) ?? ProviderConfig(
                 identifier: ProviderConfig.localProviderIdentifier,
@@ -19,7 +30,7 @@ enum AppDataBootstrapper {
             context.insert(provider)
         }
 
-        let existingModels = try context.fetch(FetchDescriptor<ModelConfig>())
+        let existingModels = allModels.filter { $0.providerIdentifier != ProviderKind.ironsmith.rawValue }
         if !existingModels.contains(where: {
             $0.identifier == ModelConfig.appleFoundationIdentifier &&
             $0.providerIdentifier == ProviderConfig.localProviderIdentifier

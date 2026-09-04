@@ -209,8 +209,6 @@ struct ToolAppDetailsEditorSheetView: View {
             "Gemini"
         case .openAI:
             "OpenAI"
-        case .ironsmith:
-            "Ironsmith"
         case .disabled:
             "Off"
         }
