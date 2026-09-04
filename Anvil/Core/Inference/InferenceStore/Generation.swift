@@ -168,7 +168,7 @@ extension InferenceStore {
             return .customResponsesProvider(
                 try codexCustomResponsesProvider(
                     provider,
-                    configurationIdentifier: "ironsmith_ollama",
+                    configurationIdentifier: "anvil_ollama",
                     baseURL: codexOllamaBaseURL(provider)
                 )
             )
@@ -179,7 +179,7 @@ extension InferenceStore {
             return .customResponsesProvider(
                 try codexCustomResponsesProvider(
                     provider,
-                    configurationIdentifier: "ironsmith_custom_\(provider.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased())",
+                    configurationIdentifier: "anvil_custom_\(provider.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased())",
                     baseURL: codexProviderBaseURL(provider)
                 )
             )
