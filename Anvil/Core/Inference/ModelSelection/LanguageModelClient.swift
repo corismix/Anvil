@@ -125,7 +125,7 @@ extension LanguageModelClient {
                     session: remoteGenerationSession(for: baseURL)
                 )
 
-            case .local, .anvil:
+            case .local, .ironsmith:
                 throw LanguageModelClientError.missingProvider
             }
         }

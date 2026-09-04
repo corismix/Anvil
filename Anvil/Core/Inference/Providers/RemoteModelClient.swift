@@ -257,8 +257,8 @@ extension RemoteModelClient {
                 || identifier.hasPrefix("chatgpt-")
                 || identifier.hasPrefix("o")
 
-        case .customOpenAICompatible, .anvil, .ollama:
-            return true  // .anvil is unreachable: the provider was removed; case kept for decode compatibility
+        case .customOpenAICompatible, .ironsmith, .ollama:
+            return true  // .ironsmith is unreachable: the provider was removed; case kept for decode compatibility
 
         case .anthropic:
             return identifier.hasPrefix("claude-")

@@ -4,7 +4,9 @@ import Security
 struct ProviderCredentialStore {
     nonisolated static let apiKeyAccessibility = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
-    private let service = "com.anvil.provider-credentials"
+    // Keychain service keeps the pre-rebrand name: existing API keys were
+    // stored under it and Keychain items are not namespaced by bundle id.
+    private let service = "com.ironsmith.provider-credentials"
 
     func saveAPIKey(_ apiKey: String, for reference: String) throws {
         let data = Data(apiKey.utf8)

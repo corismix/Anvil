@@ -168,7 +168,7 @@ extension InferenceStore {
             return .customResponsesProvider(
                 try codexCustomResponsesProvider(
                     provider,
-                    configurationIdentifier: "anvil_ollama",
+                    configurationIdentifier: "ironsmith_ollama",
                     baseURL: codexOllamaBaseURL(provider)
                 )
             )
@@ -179,11 +179,11 @@ extension InferenceStore {
             return .customResponsesProvider(
                 try codexCustomResponsesProvider(
                     provider,
-                    configurationIdentifier: "anvil_custom_\(provider.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased())",
+                    configurationIdentifier: "ironsmith_custom_\(provider.id.uuidString.replacingOccurrences(of: "-", with: "").lowercased())",
                     baseURL: codexProviderBaseURL(provider)
                 )
             )
-        case .local, .anthropic, .gemini, .anvil:
+        case .local, .anthropic, .gemini, .ironsmith:
             throw CodexAgentError.unsupportedProvider
         }
     }

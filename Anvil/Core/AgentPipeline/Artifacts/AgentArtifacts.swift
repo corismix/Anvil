@@ -382,6 +382,8 @@ enum ToolNameSanitizer {
 
 nonisolated struct ToolPackageLayout: Equatable, Sendable {
     nonisolated static let packageMetadataDirectoryName = ".anvil"
+    /// Pre-rebrand generated apps store package metadata in `.ironsmith`.
+    nonisolated static let legacyPackageMetadataDirectoryName = ".ironsmith"
     nonisolated static let attachmentsDirectoryName = "attachments"
     nonisolated static let currentRunAttachmentsDirectoryName = "current-run"
     nonisolated static let customAgentTranscriptsDirectoryName = "custom-agent-transcripts"
@@ -520,7 +522,16 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
     }
 
     nonisolated static func packageMetadataDirectoryURL(for packageRootURL: URL) -> URL {
-        packageRootURL.appendingPathComponent(packageMetadataDirectoryName, isDirectory: true)
+        let current = packageRootURL.appendingPathComponent(
+            packageMetadataDirectoryName, isDirectory: true)
+        let legacy = packageRootURL.appendingPathComponent(
+            legacyPackageMetadataDirectoryName, isDirectory: true)
+        var isDirectory: ObjCBool = false
+        if !FileManager.default.fileExists(atPath: current.path, isDirectory: &isDirectory),
+           FileManager.default.fileExists(atPath: legacy.path, isDirectory: &isDirectory) {
+            return legacy
+        }
+        return current
     }
 
     nonisolated static func packageFileURL(for path: String, packageRootURL: URL) throws -> URL {

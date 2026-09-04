@@ -193,9 +193,9 @@ enum SettingsModelPresentation {
 #Preview("AI Model Provider Logos") {
     HStack {
         ModelLogoView(identifier: ModelConfig.appleFoundationIdentifier, displayName: "Apple Foundation Model", fallbackProviderKind: .local)
-        ModelLogoView(identifier: "openai/gpt-5.4", displayName: "GPT 5.4", fallbackProviderKind: .anvil)
-        ModelLogoView(identifier: "anthropic/claude-sonnet-4.6", displayName: "Claude Sonnet 4.6", fallbackProviderKind: .anvil)
-        ModelLogoView(identifier: "deepseek/deepseek-v4-flash", displayName: "DeepSeek V4 Flash", fallbackProviderKind: .anvil)
+        ModelLogoView(identifier: "openai/gpt-5.4", displayName: "GPT 5.4", fallbackProviderKind: .ironsmith)
+        ModelLogoView(identifier: "anthropic/claude-sonnet-4.6", displayName: "Claude Sonnet 4.6", fallbackProviderKind: .ironsmith)
+        ModelLogoView(identifier: "deepseek/deepseek-v4-flash", displayName: "DeepSeek V4 Flash", fallbackProviderKind: .ironsmith)
         ModelLogoView(identifier: "llama-3.1", displayName: "Llama 3.1", fallbackProviderKind: .local)
         ModelLogoView(identifier: "phi-4", displayName: "Phi 4", fallbackProviderKind: .local)
     }
