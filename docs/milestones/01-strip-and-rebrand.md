@@ -96,13 +96,26 @@ Persistence compatibility:
   every push/PR on the `macos-26` runner. Upstream `ci.yml` and
   `release.yml` deleted (release flow depended on removed backend flags and
   Developer ID certs; Anvil release packaging is future work).
-- 1b rename: in progress on top of 1a (content sweep + file/dir renames +
-  ~/.ironsmith -> ~/.anvil migration + README rewrite).
+- 1b rename: COMPLETE. Verified by GitHub Actions run 33926963560
+  (macos-26, Xcode 26.6): build + full test suite green on `bd84b83`.
+  Shipped in `c9a543d` (global content sweep, 33 file/dir renames,
+  ~/.ironsmith -> ~/.anvil data migration with sidecar handling, README
+  rewrite, About/Info.plist attribution kept), with decode-compat fixups in
+  `317f678` (ProviderKind.ironsmith restored in 4 files, Keychain service
+  name kept, legacy .ironsmith package-metadata fallback) and `bd84b83`
+  (Codex configuration identifiers -> anvil_ prefix).
+- MILESTONE 1 COMPLETE. Remaining follow-ups owned outside this milestone:
+  GitHub repo rename corismix/Ironsmith -> corismix/Anvil (user action on
+  GitHub), Package.resolved regenerates on first Mac build, Mac runtime
+  smoke check via Aside brief.
 
 ## Verification
 
-- After 1a and after 1b: `script/build.sh` and `script/test.sh` on the Mac
-  (Aside brief). Milestone is done only when both pass after 1b.
+- Done via GitHub Actions (`.github/workflows/mac.yml`): 1a green on run
+  33925047708 (`68bc505`), 1b green on run 33926963560 (`bd84b83`). Mac
+  runtime smoke (Aside) covers what CI cannot see: app launch, onboarding
+  without sign-in, settings without account section, generation E2E,
+  migrated ~/.anvil data loads.
 - Manual smoke (Aside): app launches, popover opens, onboarding shows no
   sign-in, settings has no account section, generation with an API-key or
   local model works end to end.
