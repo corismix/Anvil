@@ -397,6 +397,7 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
     nonisolated static let previousBuildSettingsVersionFilename = "previous-build-settings.json"
     nonisolated static let pendingGenerationSettingsFilename =
         "pending-generation-settings.json"
+    nonisolated static let buildSettingsFilename = "build-settings.json"
 
     let packageRootURL: URL
     let executableName: String
@@ -449,6 +450,13 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
 
     nonisolated var pendingGenerationSettingsURL: URL {
         Self.pendingGenerationSettingsURL(for: packageRootURL)
+    }
+
+    /// Committed snapshot of the last successful generation settings.
+    /// Unlike the `versions/` copies this file is tracked by git, so
+    /// restoring a version restores its settings too.
+    nonisolated var buildSettingsURL: URL {
+        Self.buildSettingsURL(for: packageRootURL)
     }
 
     nonisolated var sourceDirectoryURL: URL {
@@ -594,6 +602,11 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
     nonisolated static func pendingGenerationSettingsURL(for packageRootURL: URL) -> URL {
         packageMetadataDirectoryURL(for: packageRootURL)
             .appendingPathComponent(pendingGenerationSettingsFilename)
+    }
+
+    nonisolated static func buildSettingsURL(for packageRootURL: URL) -> URL {
+        packageMetadataDirectoryURL(for: packageRootURL)
+            .appendingPathComponent(buildSettingsFilename)
     }
 
     nonisolated static func sandboxEntitlementsURL(for packageRootURL: URL) -> URL {

@@ -27,6 +27,7 @@ struct ToolItemActions {
     let onEditDetails: () -> Void
     let onRebuild: () -> Void
     let onRevert: () -> Void
+    let onShowVersions: () -> Void
     let onExport: () -> Void
     let onShowInFinder: () -> Void
     let onViewSource: () -> Void
@@ -44,6 +45,7 @@ struct ToolItemActions {
         onEditDetails: {},
         onRebuild: {},
         onRevert: {},
+        onShowVersions: {},
         onExport: {},
         onShowInFinder: {},
         onViewSource: {},
@@ -94,6 +96,8 @@ struct ToolItemActionsMenu: View {
             .disabled(!tool.isGenerationReady || state.isBusy)
         Button("Go Back to Previous Version", action: actions.onRevert)
             .disabled(!tool.isGenerationReady || !state.canRevert || state.isBusy)
+        Button("Version History...", action: actions.onShowVersions)
+            .disabled(!tool.isGenerationReady || state.isBusy)
         Button("Export App", action: actions.onExport)
             .disabled(!tool.isGenerationReady || state.isBusy)
         Button("View Source", action: actions.onViewSource)

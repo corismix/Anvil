@@ -293,6 +293,10 @@ final class ToolLibraryStore {
 
     nonisolated private static func computeCanRestorePreviousVersion(_ snapshot: RestoreAvailabilitySnapshot) -> Bool {
         let packageRootURL = URL(fileURLWithPath: snapshot.packageRootPath, isDirectory: true)
+        if let commitCount = try? ToolGitClient.live.commitCount(packageRootURL),
+           commitCount >= 2 {
+            return true
+        }
         let previousVersionURL = ToolPackageLayout.previousContentViewVersionURL(for: packageRootURL)
         return FileManager.default.fileExists(atPath: previousVersionURL.path)
     }
@@ -388,6 +392,68 @@ final class ToolLibraryStore {
     }
 
     func restorePreviousVersion(_ tool: Tool, in modelContext: ModelContext) async {
+        // Git history wins when it exists; the file-copy backup remains as
+        // the legacy fallback for pre-version-history packages.
+        if let commits = try? dependencies.gitClient.history(tool.packageRootURL, 2),
+           commits.count >= 2 {
+            await restoreVersion(tool, sha: commits[1].sha, in: modelContext)
+            return
+        }
+        await restoreLegacyPreviousVersion(tool, in: modelContext)
+    }
+
+    /// Newest-first version history for the tool's package. Empty when the
+    /// package has no git history yet.
+    func versionHistory(for tool: Tool) -> [ToolGitCommit] {
+        (try? dependencies.gitClient.history(tool.packageRootURL, 100)) ?? []
+    }
+
+    /// Unified diff between a version and the current working tree.
+    func versionDiff(for tool: Tool, sha: String) -> String {
+        (try? dependencies.gitClient.diffFrom(tool.packageRootURL, sha)) ?? ""
+    }
+
+    func restoreVersion(_ tool: Tool, sha: String, in modelContext: ModelContext) async {
+        guard !isGenerating, rebuildingToolID == nil, restoringToolID == nil, tool.isGenerationReady else { return }
+        isGenerating = true
+        restoringToolID = tool.id
+        clearPresentedErrorState()
+        defer {
+            isGenerating = false
+            restoringToolID = nil
+        }
+
+        do {
+            let layout = tool.packageLayout
+            try dependencies.gitClient.restoreVersion(tool.packageRootURL, sha)
+            let restoredSettings = Self.readCommittedBuildSettings(
+                for: tool.packageRootURL,
+                fallback: tool.generationSettings(defaults: .default)
+            )
+            tool.applyGenerationSettings(restoredSettings)
+            try dependencies.packageMaterializer.writeAppEntry(
+                layout: layout,
+                displayName: tool.name,
+                settings: restoredSettings
+            )
+            try await dependencies.buildClient.buildTool(tool)
+            // The restore itself becomes a commit so history stays linear.
+            try? dependencies.gitClient.recordVersion(
+                tool.packageRootURL,
+                "Restore to \(String(sha.prefix(7)))"
+            )
+            clearPendingGeneration(on: tool)
+            if selectedToolID == tool.id {
+                applyComposerSettings(restoredSettings)
+            }
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            presentError(error.localizedDescription)
+        }
+    }
+
+    private func restoreLegacyPreviousVersion(_ tool: Tool, in modelContext: ModelContext) async {
         guard !isGenerating, rebuildingToolID == nil, restoringToolID == nil, tool.isGenerationReady else { return }
         isGenerating = true
         restoringToolID = tool.id
@@ -421,6 +487,20 @@ final class ToolLibraryStore {
             modelContext.rollback()
             presentError(error.localizedDescription)
         }
+    }
+
+    nonisolated private static func readCommittedBuildSettings(
+        for packageRootURL: URL,
+        fallback: ToolGenerationSettings
+    ) -> ToolGenerationSettings {
+        let url = ToolPackageLayout.buildSettingsURL(for: packageRootURL)
+        guard let data = try? Data(contentsOf: url),
+              let snapshot = try? JSONDecoder().decode(
+                  ToolVersionBuildSettingsSnapshot.self,
+                  from: data
+              )
+        else { return fallback }
+        return snapshot.settings
     }
 
     func rebuild(_ tool: Tool, in modelContext: ModelContext) async {
@@ -1219,6 +1299,7 @@ struct ToolLibraryDependencies {
     var exportClient: ToolExportClient = .live()
     var finderClient: ToolFinderClient = .live
     var versionBackupClient: ToolVersionBackupClient = .live
+    var gitClient: ToolGitClient = .live
     var buildClient: ToolBuildClient = .live()
     var packageMaterializer: ToolPackageMaterializer = .live
     var attachmentStorage: ToolPromptAttachmentStorage = .live
@@ -1230,6 +1311,7 @@ struct ToolLibraryDependencies {
         exportClient: .live(),
         finderClient: .live,
         versionBackupClient: .live,
+        gitClient: .live,
         buildClient: .live(),
         packageMaterializer: .live,
         attachmentStorage: .live,

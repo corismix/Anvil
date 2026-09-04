@@ -36,6 +36,7 @@ struct ToolLibraryPopoverView: View {
     @State private var isShowingWelcomeOnboarding = false
     @State private var isShowingModelPicker = false
     @State private var customCodingAgentSheet: CustomCodingAgentSheet?
+    @State private var versionHistoryTool: Tool?
     @State private var isSearchPresented = false
     @State private var isPromptExpanded = false
     @State private var searchText = ""
@@ -175,6 +176,10 @@ struct ToolLibraryPopoverView: View {
         }
         .sheet(isPresented: $isShowingModelPicker) {
             ModelPickerSheetView()
+        }
+        .sheet(item: $versionHistoryTool) { tool in
+            ToolVersionHistoryView(tool: tool, store: toolLibraryStore)
+                .environment(\.modelContext, modelContext)
         }
         .sheet(item: $customCodingAgentSheet) { sheet in
             switch sheet {
@@ -404,6 +409,9 @@ struct ToolLibraryPopoverView: View {
                 Task {
                     await toolLibraryStore.restorePreviousVersion(tool, in: modelContext)
                 }
+            },
+            onShowVersions: {
+                versionHistoryTool = tool
             },
             onExport: {
                 Task {

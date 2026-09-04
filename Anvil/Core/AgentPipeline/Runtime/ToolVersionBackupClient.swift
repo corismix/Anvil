@@ -224,7 +224,7 @@ private func removePendingGenerationSettings(for packageRootURL: URL) throws {
     try FileManager.default.removeItem(at: url)
 }
 
-nonisolated private struct ToolVersionBuildSettingsSnapshot: Codable, Equatable {
+nonisolated struct ToolVersionBuildSettingsSnapshot: Codable, Equatable {
     var appKind: String
     var menuBarSystemImage: String
     var sandboxEnabled: Bool

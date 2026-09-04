@@ -101,6 +101,12 @@ nonisolated struct ToolIconEditingClient: Sendable {
                         request: request,
                         fileManager: fileManager
                     )
+                    // Version history is auxiliary: never fail an icon
+                    // install because git did.
+                    try? ToolGitClient.live.recordVersion(
+                        request.layout.packageRootURL,
+                        "Update app icon"
+                    )
                     return snapshot
                 } catch {
                     Self.restore(snapshot, layout: request.layout, fileManager: fileManager)

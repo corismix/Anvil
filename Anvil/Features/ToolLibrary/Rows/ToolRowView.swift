@@ -203,6 +203,7 @@ struct ToolRowView: View {
             onEditDetails: {},
             onRebuild: {},
             onRevert: {},
+            onShowVersions: {},
             onExport: {},
             onShowInFinder: {},
             onViewSource: {},

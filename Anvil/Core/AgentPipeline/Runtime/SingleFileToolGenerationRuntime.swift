@@ -301,6 +301,7 @@ struct SingleFileToolGenerationRuntime {
                     settings: setup.settings,
                     iconPrompt: setup.iconPrompt,
                     iconGeneration: iconGeneration,
+                    versionCommitMessage: versionCommitMessage(prefix: "Initial version", prompt: prompt),
                     lifecycle: lifecycle
                 )
             }
@@ -326,6 +327,7 @@ struct SingleFileToolGenerationRuntime {
                     settings: setup.settings,
                     iconPrompt: setup.iconPrompt,
                     iconGeneration: iconGeneration,
+                    versionCommitMessage: versionCommitMessage(prefix: "Initial version", prompt: prompt),
                     lifecycle: lifecycle
                 )
             }
@@ -360,6 +362,7 @@ struct SingleFileToolGenerationRuntime {
                 settings: setup.settings,
                 iconPrompt: setup.iconPrompt,
                 iconGeneration: iconGeneration,
+                versionCommitMessage: versionCommitMessage(prefix: "Initial version", prompt: prompt),
                 lifecycle: lifecycle
             )
         } catch is CancellationError {
@@ -584,6 +587,7 @@ struct SingleFileToolGenerationRuntime {
                 packageRootURL: existingTool.packageRootURL,
                 settings: settings,
                 iconPrompt: nil,
+                versionCommitMessage: versionCommitMessage(prefix: "Edit", prompt: prompt),
                 lifecycle: lifecycle
             )
             try context.versionBackupClient.clearPendingGenerationSettings(
@@ -596,6 +600,7 @@ struct SingleFileToolGenerationRuntime {
             layout.appEntrySourcePath,
             packageRootURL: layout.packageRootURL
         )
+        importExistingPackageIntoVersionHistory(packageRootURL: layout.packageRootURL)
         let backup = try context.versionBackupClient.stageCurrentVersion(
             layout.packageRootURL,
             contentViewPath,
@@ -641,6 +646,11 @@ struct SingleFileToolGenerationRuntime {
                 )
                 try? context.fileClient.removeItemIfExists(layout.pendingContentViewDraftURL)
                 try context.versionBackupClient.promoteStagedVersion(backup)
+                recordVersionCheckpoint(
+                    packageRootURL: layout.packageRootURL,
+                    settings: settings,
+                    message: versionCommitMessage(prefix: "Edit", prompt: prompt)
+                )
                 return ToolGenerationResult(
                     toolName: existingTool.name,
                     executableName: existingTool.executableName,
@@ -677,6 +687,11 @@ struct SingleFileToolGenerationRuntime {
             )
             try? context.fileClient.removeItemIfExists(layout.pendingContentViewDraftURL)
             try context.versionBackupClient.promoteStagedVersion(backup)
+            recordVersionCheckpoint(
+                packageRootURL: layout.packageRootURL,
+                settings: settings,
+                message: versionCommitMessage(prefix: "Edit", prompt: prompt)
+            )
         } catch {
             let isCancellation = AnvilErrorPresentation.isCancellation(error) || Task.isCancelled
             try? context.write(existingAppEntrySource, to: layout.appEntrySourcePath, packageRootURL: layout.packageRootURL)
@@ -1553,6 +1568,7 @@ struct SingleFileToolGenerationRuntime {
         settings: ToolGenerationSettings,
         iconPrompt: String?,
         iconGeneration: ToolIconGenerationHandle? = nil,
+        versionCommitMessage: String? = nil,
         lifecycle: ToolGenerationLifecycle
     ) async throws -> ToolGenerationResult {
         let layout = ToolPackageLayout(packageRootURL: packageRootURL, executableName: executableName)
@@ -1582,6 +1598,13 @@ struct SingleFileToolGenerationRuntime {
         )
 
         try? context.fileClient.removeItemIfExists(layout.pendingContentViewDraftURL)
+        if let versionCommitMessage {
+            recordVersionCheckpoint(
+                packageRootURL: packageRootURL,
+                settings: settings,
+                message: versionCommitMessage
+            )
+        }
         return ToolGenerationResult(
             toolName: displayName,
             executableName: executableName,
@@ -1590,6 +1613,62 @@ struct SingleFileToolGenerationRuntime {
             settings: settings,
             packageRootURL: packageRootURL
         )
+    }
+
+    /// Writes the committed build-settings snapshot and records a git
+    /// checkpoint for the package. Version history is auxiliary: failures
+    /// are logged and never fail generation.
+    private func recordVersionCheckpoint(
+        packageRootURL: URL,
+        settings: ToolGenerationSettings,
+        message: String
+    ) {
+        do {
+            let snapshotURL = ToolPackageLayout.buildSettingsURL(for: packageRootURL)
+            try FileManager.default.createDirectory(
+                at: snapshotURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try JSONEncoder().encode(ToolVersionBuildSettingsSnapshot(settings: settings))
+                .write(to: snapshotURL, options: .atomic)
+            _ = try context.gitClient.recordVersion(packageRootURL, message)
+        } catch {
+            AgentDiagnosticsLog.append(
+                """
+                Version history checkpoint failed (non-fatal).
+                packageRoot: \(packageRootURL.path)
+                error:
+                \(AgentDiagnosticsLog.renderError(error, limit: 400))
+                """
+            )
+        }
+    }
+
+    /// Lazily migrates a pre-version-history package into git by importing
+    /// its current state as the initial commit.
+    private func importExistingPackageIntoVersionHistory(packageRootURL: URL) {
+        do {
+            if try context.gitClient.ensureRepository(packageRootURL) {
+                _ = try context.gitClient.recordVersion(packageRootURL, "Imported existing app")
+            }
+        } catch {
+            AgentDiagnosticsLog.append(
+                """
+                Version history import failed (non-fatal).
+                packageRoot: \(packageRootURL.path)
+                error:
+                \(AgentDiagnosticsLog.renderError(error, limit: 400))
+                """
+            )
+        }
+    }
+
+    private func versionCommitMessage(prefix: String, prompt: String) -> String {
+        let excerpt = prompt
+            .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let truncated = excerpt.count > 80 ? String(excerpt.prefix(80)) + "..." : excerpt
+        return truncated.isEmpty ? prefix : "\(prefix): \(truncated)"
     }
 
     private func trimPendingSourceDraftToCleanBoundary(layout: ToolPackageLayout) throws {
