@@ -84,8 +84,9 @@ Persistence compatibility:
 
 ## Status
 
-- 1a code strip: complete pending Mac verification build (commits through
-  `13eb74e`). Test suite updated in the same pass: account/credit/store
+- 1a code strip: COMPLETE. Verified by GitHub Actions run 33925047708
+  (macos-26, Xcode 26.6): `script/build.sh` + `script/test.sh` green on
+  `68bc505` - 490 tests pass. Test suite updated in the same pass: account/credit/store
   tests deleted, provider tests repointed to OpenAI/Ollama equivalents.
   Full-repo sweep shows zero references to deleted symbols; remaining
   `ironsmith` mentions are intentional decode-compat keeps
