@@ -82,6 +82,21 @@ Persistence compatibility:
 - Repo rename corismix/Ironsmith -> corismix/Anvil happens on GitHub after
   push (corismix action).
 
+## Status
+
+- 1a code strip: complete pending Mac verification build (commits through
+  `13eb74e`). Test suite updated in the same pass: account/credit/store
+  tests deleted, provider tests repointed to OpenAI/Ollama equivalents.
+  Full-repo sweep shows zero references to deleted symbols; remaining
+  `ironsmith` mentions are intentional decode-compat keeps
+  (`ProviderKind.ironsmith`, `ProviderAuthMode.platformCredits`, persisted
+  `estimatedToolCredits`, schema migrations V4-V7).
+- CI: `.github/workflows/mac.yml` builds (debug, ad hoc signed) and tests
+  every push/PR on the `macos-26` runner. Upstream `ci.yml` and
+  `release.yml` deleted (release flow depended on removed backend flags and
+  Developer ID certs; Anvil release packaging is future work).
+- 1b rename: not started.
+
 ## Verification
 
 - After 1a and after 1b: `script/build.sh` and `script/test.sh` on the Mac
