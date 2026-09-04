@@ -1665,7 +1665,7 @@ struct SingleFileToolGenerationRuntime {
 
     private func versionCommitMessage(prefix: String, prompt: String) -> String {
         let excerpt = prompt
-            .replacingOccurrences(of: "\s+", with: " ", options: .regularExpression)
+            .components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let truncated = excerpt.count > 80 ? String(excerpt.prefix(80)) + "..." : excerpt
         return truncated.isEmpty ? prefix : "\(prefix): \(truncated)"
