@@ -184,7 +184,7 @@ extension ContentViewBuildRepairLoop {
         switch generationError {
         case .invalidRepairPatch, .noRepairPatchCandidate:
             return true
-        case .emptyPrompt, .compileFailed, .stoppedToSaveTokens:
+        case .emptyPrompt, .compileFailed, .stoppedToSaveTokens, .dependencyApprovalPending:
             return false
         }
     }
@@ -237,7 +237,7 @@ extension ContentViewBuildRepairLoop {
             return .invalidRepairPatch
         case .noRepairPatchCandidate:
             return .noDeterministicRepair
-        case .emptyPrompt, .compileFailed, .stoppedToSaveTokens:
+        case .emptyPrompt, .compileFailed, .stoppedToSaveTokens, .dependencyApprovalPending:
             return nil
         }
     }
