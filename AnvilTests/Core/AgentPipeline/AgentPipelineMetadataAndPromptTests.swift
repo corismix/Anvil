@@ -669,6 +669,62 @@ extension AgentPipelineTests {
         #expect(await modeCapture.modes == [.stream])
         #expect(await invocationCapture.count == 1)
     }
+    @MainActor
+    @Test
+    func coverageCheckReportsMissingFeaturesFromModel() async throws {
+        let response = StructuredMetadataResponse(
+            coverageReport: GeneratedToolCoverageReport(missingFeatures: ["PNG export", " empty "])
+        )
+        let missing = await ToolCoverageClient.live().missingFeatures(
+            brief: "Build a paint app with PNG export",
+            source: "import SwiftUI\nstruct ContentView: View { var body: some View { Text(\"Hi\") } }",
+            invoker: Self.makeInvoker(
+                languageModel: StructuredMetadataLanguageModel(response: response),
+                generationOptions: GenerationOptions(maximumResponseTokens: 4096)
+            )
+        )
+
+        #expect(missing == ["PNG export"])
+        let prompt = try #require(await response.prompts.first)
+        #expect(prompt.contains("User request:"))
+        #expect(prompt.contains("Build a paint app with PNG export"))
+        #expect(prompt.contains("App source:"))
+    }
+
+    @MainActor
+    @Test
+    func coverageCheckReturnsNilOnModelFailure() async throws {
+        let response = StructuredMetadataResponse(error: FakeAgentError.unsupportedStructuredGeneration)
+        let missing = await ToolCoverageClient.live().missingFeatures(
+            brief: "Build a paint app",
+            source: "import SwiftUI",
+            invoker: Self.makeInvoker(
+                languageModel: StructuredMetadataLanguageModel(response: response)
+            )
+        )
+
+        #expect(missing == nil)
+    }
+
+    @Test
+    func coverageCheckInstructionsAreConservative() {
+        let instructions = ToolCoverageClient.coverageCheckInstructions
+        #expect(instructions.contains("no trace anywhere in the source"))
+        #expect(instructions.contains("When in doubt, treat the request as implemented."))
+        #expect(instructions.contains("defers to a later version"))
+        #expect(instructions.contains("Never report style, quality, naming, or improvement suggestions."))
+        #expect(instructions.contains("Use an empty list when everything requested is present."))
+    }
+
+    @Test
+    func coverageGapEditPromptListsMissingItemsAndPreservesBehavior() {
+        let prompt = ToolCoverageClient.coverageGapEditPrompt(
+            missingFeatures: ["PNG export", "undo support"]
+        )
+        #expect(prompt.contains("- PNG export"))
+        #expect(prompt.contains("- undo support"))
+        #expect(prompt.contains("preserving all existing behavior"))
+    }
 }
 
 private enum InvocationMode: Equatable {

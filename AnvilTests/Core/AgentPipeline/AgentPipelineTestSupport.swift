@@ -462,6 +462,7 @@ actor InvocationCapture {
 actor StructuredMetadataResponse {
     private let creationPlan: GeneratedToolCreationPlan?
     private let editPlan: GeneratedToolEditPlan?
+    private let coverageReport: GeneratedToolCoverageReport?
     private let error: (any Error)?
     private(set) var prompts: [String] = []
     private(set) var options: [GenerationOptions] = []
@@ -469,10 +470,12 @@ actor StructuredMetadataResponse {
     init(
         creationPlan: GeneratedToolCreationPlan? = nil,
         editPlan: GeneratedToolEditPlan? = nil,
+        coverageReport: GeneratedToolCoverageReport? = nil,
         error: (any Error)? = nil
     ) {
         self.creationPlan = creationPlan
         self.editPlan = editPlan
+        self.coverageReport = coverageReport
         self.error = error
     }
 
@@ -499,6 +502,13 @@ actor StructuredMetadataResponse {
             return LanguageModelSession.Response(
                 content: editPlan as! Content,
                 rawContent: editPlan.generatedContent,
+                transcriptEntries: []
+            )
+        }
+        if type == GeneratedToolCoverageReport.self, let coverageReport {
+            return LanguageModelSession.Response(
+                content: coverageReport as! Content,
+                rawContent: coverageReport.generatedContent,
                 transcriptEntries: []
             )
         }

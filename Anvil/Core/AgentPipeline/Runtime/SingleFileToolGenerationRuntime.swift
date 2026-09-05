@@ -329,6 +329,11 @@ struct SingleFileToolGenerationRuntime {
                     settings: setup.settings,
                     lifecycle: lifecycle
                 )
+                try await runCoverageCheckIfNeeded(
+                    brief: contentPrompt,
+                    setup: setup,
+                    lifecycle: lifecycle
+                )
                 return try await packageTool(
                     displayName: setup.displayName,
                     executableName: setup.executableName,
@@ -361,6 +366,11 @@ struct SingleFileToolGenerationRuntime {
                 layout: setup.layout,
                 contentViewPath: setup.contentViewPath,
                 generator: generator,
+                lifecycle: lifecycle
+            )
+            try await runCoverageCheckIfNeeded(
+                brief: contentPrompt,
+                setup: setup,
                 lifecycle: lifecycle
             )
 
@@ -607,6 +617,17 @@ struct SingleFileToolGenerationRuntime {
             )
             return result
         }
+        let contentPrompt: String
+        if startingPhase == .planning {
+            contentPrompt = try await contentGenerationPrompt(
+                for: prompt,
+                appKind: settings.appKind,
+                sandboxEnabled: settings.sandboxEnabled,
+                lifecycle: lifecycle
+            )
+        } else {
+            contentPrompt = prompt
+        }
         let existingSource = try context.readIfPresent(contentViewPath, packageRootURL: layout.packageRootURL)
         let existingAppEntrySource = try context.readIfPresent(
             layout.appEntrySourcePath,
@@ -647,7 +668,7 @@ struct SingleFileToolGenerationRuntime {
                     displayName: existingTool.name,
                     layout: layout,
                     contentViewPath: contentViewPath,
-                    userPrompt: prompt,
+                    userPrompt: contentPrompt,
                     isEdit: true,
                     settings: settings,
                     lifecycle: lifecycle
@@ -674,7 +695,7 @@ struct SingleFileToolGenerationRuntime {
                 )
             }
             let generator = editGenerator(
-                userPrompt: prompt,
+                userPrompt: contentPrompt,
                 layout: layout,
                 contentViewPath: contentViewPath,
                 existingSource: existingSource,
@@ -852,6 +873,97 @@ struct SingleFileToolGenerationRuntime {
             )
             throw error
         }
+    }
+
+    /// Post-build coverage check: compares the refined brief against the final
+    /// source and runs at most one repair pass for requested items that have no
+    /// implementation. Conservative by design - a checker failure or an empty
+    /// report skips the repair pass entirely.
+    private func runCoverageCheckIfNeeded(
+        brief: String,
+        setup: CreateToolSetup,
+        lifecycle: ToolGenerationLifecycle
+    ) async throws {
+        guard AnvilFeatureFlags.isCoverageCheckEnabled() else { return }
+        let source = coverageSourceSnapshot(layout: setup.layout)
+        guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        try await lifecycle.updatePhase(.generating, .verifyingCoverage, nil)
+        guard let missing = await ToolCoverageClient.live().missingFeatures(
+            brief: brief,
+            source: source,
+            invoker: context.languageModelInvoker
+        ), !missing.isEmpty else { return }
+
+        AgentDiagnosticsLog.append(
+            """
+            Coverage check found unimplemented requested items; running one coverage repair pass.
+            packageRoot: \(setup.layout.packageRootURL.path)
+            missing: \(missing.joined(separator: "; "))
+            """
+        )
+
+        let gapPrompt = ToolCoverageClient.coverageGapEditPrompt(missingFeatures: missing)
+        if context.pipelineConfiguration.codingAgent == .codex
+            || context.pipelineConfiguration.codingAgent == .custom
+        {
+            try await generateWithWorkspaceAgent(
+                displayName: setup.displayName,
+                layout: setup.layout,
+                contentViewPath: setup.contentViewPath,
+                userPrompt: gapPrompt,
+                isEdit: true,
+                settings: setup.settings,
+                lifecycle: lifecycle
+            )
+            return
+        }
+
+        let existingSource = try context.readIfPresent(
+            setup.contentViewPath,
+            packageRootURL: setup.layout.packageRootURL
+        )
+        let generator = editGenerator(
+            userPrompt: gapPrompt,
+            layout: setup.layout,
+            contentViewPath: setup.contentViewPath,
+            existingSource: existingSource,
+            lifecycle: lifecycle,
+            resumePartialPatch: false,
+            resumePartialSource: false,
+            useCurrentSourceOnFirstAttempt: false,
+            resumePartialRepairPatch: false
+        )
+        try await compileGeneratedTool(
+            displayName: setup.displayName,
+            layout: setup.layout,
+            contentViewPath: setup.contentViewPath,
+            generator: generator,
+            lifecycle: lifecycle
+        )
+    }
+
+    /// Concatenates every Swift source file in the package (project mode can
+    /// factor code into subdirectories), capped so the checker stays cheap.
+    private func coverageSourceSnapshot(layout: ToolPackageLayout) -> String {
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(
+            at: layout.sourceDirectoryURL,
+            includingPropertiesForKeys: nil
+        ) else { return "" }
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            files.append(url)
+        }
+        files.sort { $0.lastPathComponent < $1.lastPathComponent }
+        var parts: [String] = []
+        var totalLength = 0
+        for file in files {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            guard totalLength + text.count <= 100_000 else { break }
+            parts.append("// File: \(file.lastPathComponent)\n\(text)")
+            totalLength += text.count
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     private func generateWithWorkspaceAgent(

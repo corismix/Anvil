@@ -22,6 +22,7 @@ enum ToolGenerationPhase: String, Codable, CaseIterable, Equatable, Sendable {
     case generatingEditDiff
     case generatingRepairDiff
     case repairing
+    case verifyingCoverage
     case packaging
     case completed
 }

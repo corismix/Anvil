@@ -249,6 +249,8 @@ enum ToolRowGenerationStatusResolver {
             return repairStatusText(repairErrorCount) ?? "Repairing"
         case .repairing:
             return repairStatusText(repairErrorCount) ?? "Building"
+        case .verifyingCoverage:
+            return "Checking coverage"
         case .packaging:
             return "Packaging"
         case .completed, nil:
@@ -261,6 +263,7 @@ enum ToolRowGenerationStatusResolver {
         case .generatingSource, .generatingEditDiff, .generatingRepairDiff, .repairing:
             return true
         case .initializing, .planning, .generatingIcon, .waitingForIcon, .refiningPrompt,
+            .verifyingCoverage,
             .packaging,
             .completed, nil:
             return false
