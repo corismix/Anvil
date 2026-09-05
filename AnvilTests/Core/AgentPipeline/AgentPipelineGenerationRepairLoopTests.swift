@@ -6,6 +6,24 @@ import Testing
 @testable import Anvil
 
 extension AgentPipelineTests {
+
+    private static func nonBatchingLargeModelConfiguration() -> ToolGenerationPipelineConfiguration {
+        ToolGenerationPipelineConfiguration(
+            codingAgent: .anvilFlame,
+            repairStrategy: .modelSearchReplace(
+                maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn
+            ),
+            maximumGenerationAttempts: 1,
+            batchesRepairDiagnostics: false,
+            restoresBestCandidateOnFailure: false,
+            rollsBackModelRepairWhenErrorCountIncreases: false,
+            regeneratesAfterModelRepairStall: false,
+            fallsBackToWholeFileEditAfterInvalidInitialPatch: false,
+            diagnosticWholeFileRewriteEnabled: false,
+            maximumModelRepairAttempts: ToolGenerationRepairPolicy.largeModelMaximumRepairAttempts
+        )
+    }
+
     @MainActor
     @Test
     func deterministicOnlyRepairStrategyRegeneratesInsteadOfCallingModelRepair() async throws {
@@ -443,7 +461,7 @@ extension AgentPipelineTests {
                 try await responses.next()
             },
             generationOptions: GenerationOptions(),
-            pipelineConfiguration: .anvilFlame(repairStrategy: .modelSearchReplace(maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn)),
+            pipelineConfiguration: Self.nonBatchingLargeModelConfiguration(),
             toolsDirectoryURL: toolsDirectory,
             processClient: processClient,
             planningClient: ToolGenerationPlanningClient { _ in
@@ -507,7 +525,7 @@ extension AgentPipelineTests {
         let languageModelContext = AgentLanguageModelContext(
             languageModel: EmptyLanguageModel(),
             generationOptions: GenerationOptions(),
-            pipelineConfiguration: .anvilFlame(repairStrategy: .modelSearchReplace(maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn))
+            pipelineConfiguration: Self.nonBatchingLargeModelConfiguration()
         )
         let dependencies = ToolGenerationRuntimeDependencies(
             toolsDirectoryURL: toolsDirectory,
@@ -571,7 +589,7 @@ extension AgentPipelineTests {
         let languageModelContext = AgentLanguageModelContext(
             languageModel: EmptyLanguageModel(),
             generationOptions: GenerationOptions(),
-            pipelineConfiguration: .anvilFlame(repairStrategy: .modelSearchReplace(maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn))
+            pipelineConfiguration: Self.nonBatchingLargeModelConfiguration()
         )
         let dependencies = ToolGenerationRuntimeDependencies(
             toolsDirectoryURL: toolsDirectory,
@@ -602,6 +620,74 @@ extension AgentPipelineTests {
         #expect(plan.snippets.count == ToolGenerationRepairPolicy.largeModelMaximumRepairDiagnostics)
         #expect(plan.targetDiagnostics.first?.line == 6)
         #expect(plan.targetDiagnostics.last?.line == 205)
+    }
+
+    @MainActor
+    @Test
+    func largeModelRepairPromptBatchesDiagnosticsByRootCause() async throws {
+        let toolsDirectory = try Self.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: toolsDirectory) }
+
+        let source = """
+        import SwiftUI
+
+        struct ContentView: View {
+            var body: some View {
+                VStack {
+                    Text("One").missingMember()
+                    Text("Two").missingMember()
+                    Text("Three").otherMember()
+                }
+            }
+        }
+        """
+        func diagnostic(_ line: Int, _ member: String) -> SwiftCompilerDiagnostic {
+            SwiftCompilerDiagnostic(
+                relativePath: "Sources/GeneratedTool/ContentView.swift",
+                line: line,
+                column: 37,
+                severity: .error,
+                message: "value of type 'Text' has no member '\(member)'",
+                supportingLines: []
+            )
+        }
+        let batched = [diagnostic(7, "missingMember"), diagnostic(8, "missingMember")]
+        let diagnostics = batched + [diagnostic(9, "otherMember")]
+        let languageModelContext = AgentLanguageModelContext(
+            languageModel: EmptyLanguageModel(),
+            generationOptions: GenerationOptions(),
+            pipelineConfiguration: .anvilFlame(
+                repairStrategy: .modelSearchReplace(
+                    maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn
+                )
+            )
+        )
+        let dependencies = ToolGenerationRuntimeDependencies(
+            toolsDirectoryURL: toolsDirectory,
+            fileClient: .live,
+            processClient: .live,
+            appBundleClient: .noOp(),
+            versionBackupClient: .live
+        )
+        let runtimeContext = ToolGenerationRuntimeContext(
+            languageModelContext: languageModelContext,
+            dependencies: dependencies
+        )
+        let packageRoot = toolsDirectory.appendingPathComponent("PromptBatch", isDirectory: true)
+        let layout = ToolPackageLayout(packageRootURL: packageRoot, executableName: "PromptBatch")
+        let loop = ContentViewBuildRepairLoop(
+            context: runtimeContext,
+            layout: layout,
+            displayName: "Prompt Batch",
+            contentViewPath: layout.contentViewSourcePath,
+            regenerationThreshold: ToolGenerationRepairPolicy.regenerationThreshold,
+            maximumGenerationAttempts: 1,
+            lifecycle: .noop
+        )
+
+        let plan = loop.makeRepairPromptPlan(source: source, diagnostics: diagnostics)
+
+        #expect(plan.targetDiagnostics == batched)
     }
 
     @MainActor
@@ -649,7 +735,7 @@ extension AgentPipelineTests {
                 try await responses.next()
             },
             generationOptions: GenerationOptions(),
-            pipelineConfiguration: .anvilFlame(repairStrategy: .modelSearchReplace(maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn)),
+            pipelineConfiguration: Self.nonBatchingLargeModelConfiguration(),
             toolsDirectoryURL: toolsDirectory,
             processClient: processClient,
             planningClient: ToolGenerationPlanningClient { _ in
@@ -749,7 +835,7 @@ extension AgentPipelineTests {
                 try await responses.next()
             },
             generationOptions: GenerationOptions(),
-            pipelineConfiguration: .anvilFlame(repairStrategy: .modelSearchReplace(maxPatchBlocksPerTurn: ToolGenerationRepairPolicy.largeModelPatchBlocksPerTurn)),
+            pipelineConfiguration: Self.nonBatchingLargeModelConfiguration(),
             toolsDirectoryURL: toolsDirectory,
             processClient: processClient,
             planningClient: ToolGenerationPlanningClient { _ in
