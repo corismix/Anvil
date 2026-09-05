@@ -802,7 +802,6 @@ struct SingleFileToolGenerationRuntime {
             appKind: settings.appKind,
             sandboxEnabled: settings.sandboxEnabled,
             userPrompt: userPrompt,
-            isEdit: isEdit,
             modelIdentifier: context.codingAgentModelIdentifier,
             modelFamily: context.codingAgentModelFamily,
             contextWindowTokens: context.codingAgentContextWindowTokens,
@@ -812,6 +811,7 @@ struct SingleFileToolGenerationRuntime {
         ) { event in
             await Self.handleCodexAgentEvent(event, lifecycle: lifecycle)
         }
+        request.isEdit = isEdit
         request.projectMode = projectMode
 
         do {
