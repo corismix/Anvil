@@ -21,7 +21,7 @@ struct AboutTests {
         #expect(metadata.versionText == "Version 2.3")
         #expect(metadata.copyright == "Copyright © 2026 Jade Westover")
         #expect(metadata.licenseSummary == "Licensed under GNU GPLv3")
-        #expect(metadata.sourceCodeURL.absoluteString == "https://github.com/corismix/Ironsmith")
+        #expect(metadata.sourceCodeURL.absoluteString == "https://github.com/corismix/Anvil")
     }
 
     @Test

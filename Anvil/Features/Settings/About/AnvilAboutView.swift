@@ -7,7 +7,7 @@ struct AnvilAboutMetadata: Equatable {
     static let fallbackCopyright =
         "Copyright © 2026 Jade Westover and contributors\nAnvil fork maintained by corismix"
     static let licenseSummary = "Licensed under GNU GPLv3"
-    static let sourceCodeURL = URL(string: "https://github.com/corismix/Ironsmith")!
+    static let sourceCodeURL = URL(string: "https://github.com/corismix/Anvil")!
 
     var applicationName: String
     var applicationVersion: String?

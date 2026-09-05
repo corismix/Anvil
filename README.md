@@ -44,7 +44,7 @@ Some examples of prompts you can try:
 
 ## Install
 
-Download the latest Anvil build from [GitHub Releases](https://github.com/corismix/Ironsmith/releases/latest).
+Download the latest Anvil build from [GitHub Releases](https://github.com/corismix/Anvil/releases/latest).
 
 Anvil requires macOS 26 or newer and supports both Intel and Apple Silicon Macs. Make sure Apple Intelligence is enabled where available; Anvil uses it to create app icons and provide the built-in Foundation Model.
 

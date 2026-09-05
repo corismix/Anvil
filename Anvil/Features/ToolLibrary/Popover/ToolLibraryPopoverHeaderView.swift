@@ -13,7 +13,7 @@ struct ToolLibraryPopoverHeaderView: View {
     let isLoadingModels: Bool
     let onOpenSettings: () -> Void
     private static let issueReportURL = URL(
-        string: "https://github.com/corismix/Ironsmith/issues/new")!
+        string: "https://github.com/corismix/Anvil/issues/new")!
 
     var body: some View {
         HStack {

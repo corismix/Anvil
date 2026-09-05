@@ -11,7 +11,7 @@ struct AppUpdateClient {
     var fetchLatestRelease: @Sendable () async throws -> AppUpdateRelease
 
     nonisolated static let live = AppUpdateClient {
-        let url = URL(string: "https://api.github.com/repos/corismix/Ironsmith/releases/latest")!
+        let url = URL(string: "https://api.github.com/repos/corismix/Anvil/releases/latest")!
         var request = URLRequest(url: url)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("Anvil", forHTTPHeaderField: "User-Agent")
