@@ -1285,6 +1285,67 @@ extension AgentPipelineTests {
     }
 
     @Test
+    func processHelpersParseXCBuildSwiftBuildMessageDiagnostics() {
+        let root = URL(fileURLWithPath: "/Users/tester/.anvil/tools/paint-studio", isDirectory: true)
+        // Verbatim XCBuild SwiftBuildMessage format (Xcode 26 beta build log),
+        // with the home directory anonymized.
+        let output = """
+            Building for debugging...
+            [19 / 24]
+
+            error: /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift:295:57 expected ',' separator: FixIt(sourceRange: XCBuild.SwiftBuildMessage.DiagnosticInfo.SourceRange(path: "/Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift", startLine: 295, startColumn: 57, endLine: 295, endColumn: 57), textToInsert: ",")
+            error: SwiftDriver PaintStudio normal arm64 com.apple.xcode.tools.swift.compiler failed with a nonzero exit code.
+            """
+
+        let diagnostics = SwiftPackageProcessClient.parseDiagnostics(
+            in: output,
+            packageRootURL: root
+        )
+
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.relativePath == "Sources/PaintStudio/ContentView.swift")
+        #expect(diagnostics.first?.line == 295)
+        #expect(diagnostics.first?.column == 57)
+        #expect(diagnostics.first?.severity == .error)
+        #expect(diagnostics.first?.message == "expected ',' separator")
+        #expect(diagnostics.first?.supportingLines.isEmpty == true)
+    }
+
+    @Test
+    func processHelpersFindActionableFileInXCBuildOutput() {
+        let root = URL(fileURLWithPath: "/Users/tester/.anvil/tools/paint-studio", isDirectory: true)
+        let output = """
+            error: /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift:295:57 expected ',' separator: FixIt(sourceRange: XCBuild.SwiftBuildMessage.DiagnosticInfo.SourceRange(path: "/Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift", startLine: 295, startColumn: 57, endLine: 295, endColumn: 57), textToInsert: ",")
+            """
+
+        #expect(
+            SwiftPackageProcessClient.firstActionableSwiftFile(in: output, packageRootURL: root)
+                == "Sources/PaintStudio/ContentView.swift"
+        )
+    }
+
+    @Test
+    func processHelpersParseXCBuildWarningDiagnostics() {
+        let root = URL(fileURLWithPath: "/Users/tester/.anvil/tools/paint-studio", isDirectory: true)
+        let output = """
+            warning: /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift:10:5 initialization of immutable value 'draft' was never used
+            """
+
+        let diagnostics = SwiftPackageProcessClient.parseDiagnostics(
+            in: output,
+            packageRootURL: root
+        )
+
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.severity == .warning)
+        #expect(diagnostics.first?.line == 10)
+        #expect(
+            diagnostics.first?.message
+                == "initialization of immutable value 'draft' was never used"
+        )
+    }
+
+    @Test
     func diagnosticsLogRendersCompactDiagnosticsByDefault() {
         let diagnostics = [
             SwiftCompilerDiagnostic(

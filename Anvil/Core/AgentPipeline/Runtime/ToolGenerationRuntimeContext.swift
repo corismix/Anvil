@@ -68,14 +68,33 @@ nonisolated struct ToolLanguageModelInvoker: @unchecked Sendable {
         do {
             let content: Content
             if streaming ?? configuration.streaming {
-                content = try await streamResponse(
-                    stage: stage,
-                    in: session,
-                    to: prompt,
-                    generating: type,
-                    options: configuration.generationOptions,
-                    onSnapshot: onSnapshot
-                )
+                do {
+                    content = try await streamResponse(
+                        stage: stage,
+                        in: session,
+                        to: prompt,
+                        generating: type,
+                        options: configuration.generationOptions,
+                        onSnapshot: onSnapshot
+                    )
+                } catch let streamError as ToolGenerationRuntimeError {
+                    guard case .emptyStream = streamError else { throw streamError }
+                    // Some providers answer structured streaming requests
+                    // with a well-formed response but no text deltas, so the
+                    // stream completes empty. Retry once without streaming
+                    // before giving up.
+                    let response = try await session.respond(
+                        to: Prompt(prompt),
+                        generating: type,
+                        options: configuration.generationOptions
+                    )
+                    content = response.content
+                    if let onSnapshot {
+                        try await MainActor.run {
+                            try onSnapshot(content.asPartiallyGenerated())
+                        }
+                    }
+                }
             } else {
                 let response = try await session.respond(
                     to: Prompt(prompt),

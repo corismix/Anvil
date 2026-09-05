@@ -252,12 +252,12 @@ struct SwiftPackageProcessClient: Sendable {
 
     static func firstActionableSwiftFile(in output: String, packageRootURL: URL) -> String? {
         let escapedRoot = NSRegularExpression.escapedPattern(for: packageRootURL.standardizedFileURL.path)
-        let absolutePattern = "\(escapedRoot)/([^:\\n]+\\.swift):\\d+:\\d+:"
+        let absolutePattern = "\(escapedRoot)/([^:\\n]+\\.swift):\\d+:\\d+[:\\s]"
         if let relative = firstCapture(in: output, pattern: absolutePattern) {
             return relative
         }
 
-        return firstCapture(in: output, pattern: "((?:Sources|Tests)/[^:\\n]+\\.swift):\\d+:\\d+:")
+        return firstCapture(in: output, pattern: "((?:Sources|Tests)/[^:\\n]+\\.swift):\\d+:\\d+[:\\s]")
     }
 
     static func compilerExcerpt(from output: String, limit: Int = 3_500) -> String {
@@ -304,6 +304,12 @@ struct SwiftPackageProcessClient: Sendable {
                 if diagnosticHeader(from: continuation, packageRootPath: packageRootPath) != nil || isBuildProgressLine(continuation) {
                     break
                 }
+                // XCBuild emits severity-first lines ("error: SwiftDriver ...")
+                // that are not file diagnostics; never absorb them as
+                // supporting text - they can carry whole command-line dumps.
+                if isSeverityFirstLine(continuation) {
+                    break
+                }
                 if continuation.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[#") {
                     break
                 }
@@ -328,6 +334,26 @@ struct SwiftPackageProcessClient: Sendable {
         return diagnostics
     }
 
+    private static func firstMatchCaptures(
+        in line: String,
+        pattern: String,
+        expectedCount: Int
+    ) -> [String]? {
+        guard let expression = try? NSRegularExpression(pattern: pattern) else { return nil }
+        let range = NSRange(line.startIndex..<line.endIndex, in: line)
+        guard let match = expression.firstMatch(in: line, range: range),
+              match.numberOfRanges == expectedCount + 1
+        else {
+            return nil
+        }
+        var captures: [String] = []
+        for index in 1...expectedCount {
+            guard let captureRange = Range(match.range(at: index), in: line) else { return nil }
+            captures.append(String(line[captureRange]))
+        }
+        return captures
+    }
+
     private static func firstCapture(in output: String, pattern: String) -> String? {
         guard let expression = try? NSRegularExpression(pattern: pattern) else { return nil }
         let range = NSRange(output.startIndex..<output.endIndex, in: output)
@@ -344,6 +370,10 @@ struct SwiftPackageProcessClient: Sendable {
         diagnosticHeader(from: line, packageRootPath: nil) != nil
     }
 
+    private static func isSeverityFirstLine(_ line: String) -> Bool {
+        line.hasPrefix("error: ") || line.hasPrefix("warning: ") || line.hasPrefix("note: ")
+    }
+
     private static func isBuildProgressLine(_ line: String) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         return trimmed.hasPrefix("[") || trimmed.hasPrefix("Build ") || trimmed.hasPrefix("Compile ")
@@ -353,27 +383,37 @@ struct SwiftPackageProcessClient: Sendable {
         from line: String,
         packageRootPath: String?
     ) -> (relativePath: String?, line: Int, column: Int, severity: SwiftCompilerDiagnosticSeverity, message: String)? {
-        let pattern = #"(.+\.swift):(\d+):(\d+):\s+(error|warning|note):\s+(.+)"#
-        guard let expression = try? NSRegularExpression(pattern: pattern) else { return nil }
-        let range = NSRange(line.startIndex..<line.endIndex, in: line)
-        guard let match = expression.firstMatch(in: line, range: range), match.numberOfRanges == 6 else {
-            return nil
+        // swiftc / swift build: <path>:<line>:<column>: <severity>: <message>
+        let classicPattern = #"(.+\.swift):(\d+):(\d+):\s+(error|warning|note):\s+(.+)"#
+        // XCBuild SwiftBuildMessage: <severity>: <path>:<line>:<column> <message>
+        let xcbuildPattern = #"^(error|warning|note):\s+(.+?\.swift):(\d+):(\d+):?\s+(.+)"#
+
+        var captures: [String]?
+        if let classic = firstMatchCaptures(in: line, pattern: classicPattern, expectedCount: 5) {
+            captures = [classic[0], classic[1], classic[2], classic[3], classic[4]]
+        } else if let xcbuild = firstMatchCaptures(in: line, pattern: xcbuildPattern, expectedCount: 5) {
+            // XCBuild puts the severity first, so reorder into the classic
+            // path/line/column/severity/message order.
+            captures = [xcbuild[1], xcbuild[2], xcbuild[3], xcbuild[0], xcbuild[4]]
         }
+        guard let captures else { return nil }
 
         guard
-            let pathRange = Range(match.range(at: 1), in: line),
-            let lineRange = Range(match.range(at: 2), in: line),
-            let columnRange = Range(match.range(at: 3), in: line),
-            let severityRange = Range(match.range(at: 4), in: line),
-            let messageRange = Range(match.range(at: 5), in: line),
-            let lineNumber = Int(line[lineRange]),
-            let columnNumber = Int(line[columnRange]),
-            let severity = SwiftCompilerDiagnosticSeverity(rawValue: String(line[severityRange]))
+            let lineNumber = Int(captures[1]),
+            let columnNumber = Int(captures[2]),
+            let severity = SwiftCompilerDiagnosticSeverity(rawValue: captures[3])
         else {
             return nil
         }
 
-        let absolutePath = String(line[pathRange])
+        var message = captures[4]
+        // XCBuild appends a verbose FixIt dump to the message; the structured
+        // line/column above already carries what the repair loop needs.
+        if let fixItRange = message.range(of: ": FixIt(") {
+            message = String(message[..<fixItRange.lowerBound])
+        }
+
+        let absolutePath = captures[0]
         let relativePath: String?
         if let packageRootPath, absolutePath.hasPrefix(packageRootPath + "/") {
             relativePath = String(absolutePath.dropFirst(packageRootPath.count + 1))

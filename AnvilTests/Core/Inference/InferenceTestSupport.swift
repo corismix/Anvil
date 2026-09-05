@@ -260,8 +260,14 @@ struct InferenceTestLanguageModel: LanguageModel {
 
 enum FakeInferenceError: LocalizedError {
     case expected
+    case unexpectedNonStreamingRetry
 
     var errorDescription: String? {
-        "Expected test failure."
+        switch self {
+        case .expected:
+            "Expected test failure."
+        case .unexpectedNonStreamingRetry:
+            "Non-streaming respond should not have been called."
+        }
     }
 }
