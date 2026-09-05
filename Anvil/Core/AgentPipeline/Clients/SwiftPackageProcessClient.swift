@@ -251,6 +251,7 @@ struct SwiftPackageProcessClient: Sendable {
     }
 
     static func firstActionableSwiftFile(in output: String, packageRootURL: URL) -> String? {
+        let output = strippingANSIEscapeSequences(output)
         let escapedRoot = NSRegularExpression.escapedPattern(for: packageRootURL.standardizedFileURL.path)
         let absolutePattern = "\(escapedRoot)/([^:\\n]+\\.swift):\\d+:\\d+[:\\s]"
         if let relative = firstCapture(in: output, pattern: absolutePattern) {
@@ -275,7 +276,7 @@ struct SwiftPackageProcessClient: Sendable {
             .map(\.renderedText)
 
         guard !rendered.isEmpty else {
-            return compilerExcerpt(from: output)
+            return compilerExcerpt(from: strippingANSIEscapeSequences(output))
         }
 
         return rendered.joined(separator: "\n\n")
@@ -286,7 +287,7 @@ struct SwiftPackageProcessClient: Sendable {
         packageRootURL: URL
     ) -> [SwiftCompilerDiagnostic] {
         let packageRootPath = packageRootURL.standardizedFileURL.path
-        let lines = output.components(separatedBy: .newlines)
+        let lines = strippingANSIEscapeSequences(output).components(separatedBy: .newlines)
         var diagnostics: [SwiftCompilerDiagnostic] = []
         var index = 0
 
@@ -368,6 +369,16 @@ struct SwiftPackageProcessClient: Sendable {
 
     private static func isSwiftDiagnosticHeader(_ line: String) -> Bool {
         diagnosticHeader(from: line, packageRootPath: nil) != nil
+    }
+
+    // Build logs can embed ANSI color sequences (Xcode's -color-diagnostics
+    // output); strip them before any pattern matching.
+    private static func strippingANSIEscapeSequences(_ text: String) -> String {
+        text.replacingOccurrences(
+            of: #"\x1B\[[0-9;?]*[A-Za-z]"#,
+            with: "",
+            options: .regularExpression
+        )
     }
 
     private static func isSeverityFirstLine(_ line: String) -> Bool {

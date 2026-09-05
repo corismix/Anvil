@@ -1346,6 +1346,49 @@ extension AgentPipelineTests {
     }
 
     @Test
+    func processHelpersParseANSIColoredDiagnostics() {
+        let root = URL(fileURLWithPath: "/Users/tester/.anvil/tools/paint-studio", isDirectory: true)
+        // Verbatim Xcode 26 beta color-diagnostics format (home directory
+        // anonymized): classic path:line:col shape with ANSI escapes around
+        // the severity and message.
+        let output = """
+            /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift:90:1: \u{1B}[1;31merror: \u{1B}[1;39mcannot find 'scaleEffect' in scope\u{1B}[0;0m
+            \u{1B}[0;36m88 |\u{1B}[0;0m func makeBody(configuration: ButtonStyle.Configuration) -> some View {
+            \u{1B}[0;36m89 |\u{1B}[0;0m configuration.label
+            \u{1B}[0;36m90 |\u{1B}[0;0m \u{1B}[4;39mscaleEffect\u{1B}[0;0m(configuration.isPressed ? 0.9 : 1.0)
+            error: SwiftCompile normal arm64 /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift failed with a nonzero exit code.
+            """
+
+        let diagnostics = SwiftPackageProcessClient.parseDiagnostics(
+            in: output,
+            packageRootURL: root
+        )
+
+        #expect(diagnostics.count == 1)
+        #expect(diagnostics.first?.relativePath == "Sources/PaintStudio/ContentView.swift")
+        #expect(diagnostics.first?.line == 90)
+        #expect(diagnostics.first?.column == 1)
+        #expect(diagnostics.first?.severity == .error)
+        #expect(diagnostics.first?.message == "cannot find 'scaleEffect' in scope")
+        #expect(
+            diagnostics.first?.supportingLines.allSatisfy { !$0.contains("\u{1B}") } == true
+        )
+    }
+
+    @Test
+    func processHelpersFindActionableFileInANSIColoredOutput() {
+        let root = URL(fileURLWithPath: "/Users/tester/.anvil/tools/paint-studio", isDirectory: true)
+        let output = """
+            /Users/tester/.anvil/tools/paint-studio/Sources/PaintStudio/ContentView.swift:90:1: \u{1B}[1;31merror: \u{1B}[1;39mcannot find 'scaleEffect' in scope\u{1B}[0;0m
+            """
+
+        #expect(
+            SwiftPackageProcessClient.firstActionableSwiftFile(in: output, packageRootURL: root)
+                == "Sources/PaintStudio/ContentView.swift"
+        )
+    }
+
+    @Test
     func diagnosticsLogRendersCompactDiagnosticsByDefault() {
         let diagnostics = [
             SwiftCompilerDiagnostic(

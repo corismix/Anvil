@@ -1,6 +1,39 @@
 import Foundation
 
 extension ContentViewRepairSupport {
+    /// Models sometimes write SwiftUI modifier chains without the leading
+    /// dots ("scaleEffect(...)" instead of ".scaleEffect(...)"), which fails
+    /// with "cannot find '<name>' in scope". Prepend the dot when the line is
+    /// exactly a bare call of a known modifier.
+    static func missingLeadingDotModifierFix(
+        for diagnostic: SwiftCompilerDiagnostic,
+        snippet: ContentViewRepairSnippet
+    ) -> ContentViewDeterministicEdit? {
+        guard
+            let modifier = firstCapture(
+                in: diagnostic.message,
+                pattern: #"cannot find '([A-Za-z_][A-Za-z0-9_]*)' in scope"#
+            ),
+            swiftUIModifierNames.contains(modifier),
+            let line = lineText(in: snippet, targetLine: diagnostic.line)
+        else {
+            return nil
+        }
+
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("\(modifier)(") else {
+            return nil
+        }
+
+        let leadingWhitespace = line.prefix(while: { $0 == " " || $0 == "\t" })
+        return ContentViewDeterministicEdit(
+            operation: .replaceLine,
+            target: line,
+            replacement: "\(leadingWhitespace).\(trimmed)",
+            section: nil
+        )
+    }
+
     static func extraneousStringWrapperLabelFix(
         for diagnostic: SwiftCompilerDiagnostic,
         snippet: ContentViewRepairSnippet

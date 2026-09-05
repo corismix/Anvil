@@ -19,6 +19,7 @@ enum ToolGenerationPrompts {
         Do not create Package.swift, AppDelegate, or SceneDelegate.
         Do NOT append @main to any struct. This entry point already exists and already calls ContentView
         This is a macOS SwiftUI app. Do not use iOS-only modifiers such as keyboardType.
+        Every SwiftUI modifier call needs its leading dot: write .scaleEffect(...), .opacity(...), .animation(...). A bare modifier call like scaleEffect(...) does not compile.
         The prompt states whether ContentView is hosted as a normal window app or a menu bar app. Respect that app type when choosing scope, layout density, and sizing.
         The generated app is self-contained and runs on the user's Mac, with direct internet requests allowed when the user's request requires them.
         The prompt states whether the generated app uses the app sandbox. Treat that as runtime context, not a reason to reduce useful scope: when sandboxed, use sandbox-compatible macOS patterns such as user-selected files, and open/save/import panels etc.; when unsandboxed, use what is needed to complete the user's ask, but do not change the user's system unless asked or required.

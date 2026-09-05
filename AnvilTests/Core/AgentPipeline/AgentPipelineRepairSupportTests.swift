@@ -824,4 +824,77 @@ extension AgentPipelineTests {
         #expect(edit?.target == "struct MortgageCalculator: Identifiable {")
         #expect(edit?.replacement == "struct MortgageCalculator: Identifiable {\n  let id = UUID()")
     }
+
+    @Test
+    func contentViewRepairSupportAddsMissingLeadingDotToBareModifier() {
+        let source = """
+        import SwiftUI
+
+        struct ContentView: View {
+            var body: some View {
+                Button("Paint") {}
+                    .buttonStyle(PaintButtonStyle())
+            }
+        }
+
+        struct PaintButtonStyle: ButtonStyle {
+            func makeBody(configuration: Configuration) -> some View {
+                configuration.label
+                scaleEffect(configuration.isPressed ? 0.9 : 1.0)
+                opacity(configuration.isPressed ? 0.7 : 1.0)
+            }
+        }
+        """
+        let snippet = ContentViewRepairSupport.extractSnippet(from: source, around: 13)
+        let diagnostic = SwiftCompilerDiagnostic(
+            relativePath: "Sources/GeneratedTool/ContentView.swift",
+            line: 13,
+            column: 1,
+            severity: .error,
+            message: "cannot find 'scaleEffect' in scope",
+            supportingLines: []
+        )
+
+        let repair = ContentViewRepairSupport.makeDeterministicRepair(
+            for: diagnostic,
+            source: source,
+            snippet: snippet
+        )
+
+        #expect(repair?.name == "missingLeadingDotModifierFix")
+        #expect(repair?.edit.operation == .replaceLine)
+        #expect(repair?.edit.target.contains("scaleEffect(") == true)
+        #expect(repair?.edit.replacement.hasPrefix("        .scaleEffect(") == true)
+    }
+
+    @Test
+    func contentViewRepairSupportIgnoresBareCallsThatAreNotModifiers() {
+        let source = """
+        import SwiftUI
+
+        struct ContentView: View {
+            var body: some View {
+                Text("Hi")
+                greetUser("Hi")
+            }
+        }
+        """
+        let snippet = ContentViewRepairSupport.extractSnippet(from: source, around: 6)
+        let diagnostic = SwiftCompilerDiagnostic(
+            relativePath: "Sources/GeneratedTool/ContentView.swift",
+            line: 6,
+            column: 1,
+            severity: .error,
+            message: "cannot find 'greetUser' in scope",
+            supportingLines: []
+        )
+
+        let repair = ContentViewRepairSupport.makeDeterministicRepair(
+            for: diagnostic,
+            source: source,
+            snippet: snippet
+        )
+
+        #expect(repair?.name != "missingLeadingDotModifierFix")
+    }
 }

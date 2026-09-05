@@ -140,6 +140,10 @@ extension ContentViewRepairSupport {
             return ContentViewDeterministicRepair(name: "missingBindingPrefixFix", edit: patch)
         }
 
+        if let patch = missingLeadingDotModifierFix(for: diagnostic, snippet: snippet) {
+            return ContentViewDeterministicRepair(name: "missingLeadingDotModifierFix", edit: patch)
+        }
+
         if let patch = missingDisplayStateFix(for: diagnostic, source: source) {
             return ContentViewDeterministicRepair(name: "missingDisplayStateFix", edit: patch)
         }

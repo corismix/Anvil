@@ -1,6 +1,37 @@
 import Foundation
 
 extension ContentViewRepairSupport {
+    /// Common SwiftUI view modifiers. Models sometimes emit these as bare
+    /// calls without the leading dot, which fails with
+    /// "cannot find '<name>' in scope".
+    static let swiftUIModifierNames: Set<String> = [
+        "accentColor", "alert", "animation", "antialiased", "aspectRatio",
+        "background", "badge", "baselineOffset", "blendMode", "blur", "bold",
+        "border", "brightness", "buttonStyle", "clipShape", "clipped",
+        "colorInvert", "colorMultiply", "compositingGroup", "confirmationDialog",
+        "contextMenu", "contrast", "coordinateSpace", "cornerRadius",
+        "defaultFocus", "disabled", "drawingGroup", "dropDestination",
+        "environment", "environmentObject", "fill", "fixedSize", "focusEffectDisabled",
+        "focusable", "focused", "font", "fontDesign", "fontWeight",
+        "foregroundColor", "foregroundStyle", "frame", "gesture", "grayscale",
+        "help", "hidden", "hueRotation", "id", "ignoresSafeArea",
+        "imageScale", "interpolation", "italic", "kerning", "labelStyle",
+        "layoutPriority", "lineLimit", "lineSpacing", "listRowSeparator",
+        "listStyle", "mask", "matchedGeometryEffect", "multilineTextAlignment",
+        "navigationTitle", "offset", "onAppear", "onChange", "onDisappear",
+        "onDrag", "onDrop", "onHover", "onLongPressGesture", "onPreferenceChange",
+        "onTapGesture", "opacity", "overlay", "padding", "pickerStyle",
+        "popover", "position", "preference", "privacySensitive", "redacted",
+        "refreshable", "renderingMode", "resizable", "rotation3DEffect",
+        "rotationEffect", "safeAreaInset", "saturation", "scaleEffect",
+        "scaledToFill", "scaledToFit", "scrollIndicators", "searchable",
+        "sensoryFeedback", "shadow", "sheet", "stroke", "strokeBorder",
+        "strikethrough", "swipeActions", "symbolRenderingMode", "symbolVariant",
+        "tag", "task", "textCase", "textFieldStyle", "tint", "toggleStyle",
+        "toolbar", "tracking", "transformEffect", "transition",
+        "truncationMode", "underline", "unredacted", "zIndex",
+    ]
+
     static func removeWeakSelfCaptureAndOptionalSelf(from text: String) -> String {
         let capturePattern = #"\{\s*\[weak\s+self\]\s*"#
         let withoutCapture: String

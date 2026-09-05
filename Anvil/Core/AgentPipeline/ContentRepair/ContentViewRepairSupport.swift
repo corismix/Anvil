@@ -223,6 +223,11 @@ enum ContentViewRepairSupport {
             return RepairRootCauseKey(kind: "malformed-range-iteration", value: "bool-range", isBatchable: true)
         }
         if let symbol = firstCapture(in: diagnostic.message, pattern: #"cannot find '([^']+)' in scope"#) {
+            // Bare SwiftUI modifier calls missing their leading dot all share
+            // one root cause; batch them regardless of the modifier name.
+            if swiftUIModifierNames.contains(symbol) {
+                return RepairRootCauseKey(kind: "missing-modifier-leading-dot", value: "swiftui-modifier", isBatchable: true)
+            }
             return RepairRootCauseKey(kind: "missing-symbol", value: symbol, isBatchable: true)
         }
         if let argument = firstCapture(in: diagnostic.message, pattern: #"extra argument '([^']+)' in call"#) {

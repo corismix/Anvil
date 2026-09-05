@@ -298,4 +298,53 @@ extension AgentPipelineTests {
 
         #expect(errors.map(\.line) == [30, 45])
     }
+
+    @Test
+    func selectedDiagnosticGroupBatchesMissingModifierDotsAcrossNames() {
+        let diagnostics = [
+            SwiftCompilerDiagnostic(
+                relativePath: "Sources/Demo/ContentView.swift",
+                line: 10,
+                column: 1,
+                severity: .error,
+                message: "cannot find 'scaleEffect' in scope",
+                supportingLines: []
+            ),
+            SwiftCompilerDiagnostic(
+                relativePath: "Sources/Demo/ContentView.swift",
+                line: 11,
+                column: 1,
+                severity: .error,
+                message: "cannot find 'opacity' in scope",
+                supportingLines: []
+            ),
+            SwiftCompilerDiagnostic(
+                relativePath: "Sources/Demo/ContentView.swift",
+                line: 12,
+                column: 1,
+                severity: .error,
+                message: "cannot find 'animation' in scope",
+                supportingLines: []
+            ),
+            SwiftCompilerDiagnostic(
+                relativePath: "Sources/Demo/ContentView.swift",
+                line: 20,
+                column: 12,
+                severity: .error,
+                message: "cannot find 'inputText' in scope",
+                supportingLines: []
+            ),
+        ]
+
+        let grouped = ContentViewRepairSupport.selectedDiagnosticGroup(
+            from: diagnostics,
+            maximumCount: 5
+        )
+        #expect(grouped.count == 3)
+        #expect(grouped.allSatisfy { $0.message.contains("in scope") })
+        #expect(
+            ContentViewRepairSupport.estimatedRepairGroupCount(from: diagnostics, maximumCount: 5)
+                == 2
+        )
+    }
 }
