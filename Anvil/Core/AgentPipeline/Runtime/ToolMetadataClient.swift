@@ -9,6 +9,7 @@ struct ToolCreationPlan: Equatable, Sendable {
     let suggestedAppKind: ToolAppKind
     let suggestedSandboxPermissions: GeneratedAppSandboxPermissions
     let suggestedResourcePermissions: GeneratedAppResourcePermissions
+    let suggestedIconPalette: String?
 
     nonisolated init(
         displayName: String,
@@ -17,7 +18,8 @@ struct ToolCreationPlan: Equatable, Sendable {
         category: ToolAppCategory = .utilities,
         suggestedAppKind: ToolAppKind = .window,
         suggestedSandboxPermissions: GeneratedAppSandboxPermissions = .none,
-        suggestedResourcePermissions: GeneratedAppResourcePermissions = .none
+        suggestedResourcePermissions: GeneratedAppResourcePermissions = .none,
+        suggestedIconPalette: String? = nil
     ) {
         self.displayName = displayName
         self.iconPrompt = iconPrompt
@@ -26,6 +28,7 @@ struct ToolCreationPlan: Equatable, Sendable {
         self.suggestedAppKind = suggestedAppKind
         self.suggestedSandboxPermissions = suggestedSandboxPermissions
         self.suggestedResourcePermissions = suggestedResourcePermissions
+        self.suggestedIconPalette = suggestedIconPalette
     }
 }
 
@@ -76,6 +79,12 @@ struct GeneratedToolCreationPlan {
             "Exact resource permission raw values required by the explicit request, or an empty list."
     )
     let resourcePermissions: [String]
+
+    @Guide(
+        description:
+            "One icon palette name chosen exactly from Anvil's allowed palette list, or an empty string."
+    )
+    let palette: String
 }
 
 extension GeneratedToolCreationPlan {
@@ -84,7 +93,8 @@ extension GeneratedToolCreationPlan {
         iconPrompt: String,
         menuBarSystemImage: String = ToolMenuBarSymbol.fallback,
         category: String = ToolAppCategory.utilities.rawValue,
-        appKind: String = ToolAppKind.window.rawValue
+        appKind: String = ToolAppKind.window.rawValue,
+        palette: String = ""
     ) {
         self.init(
             displayName: displayName,
@@ -93,7 +103,8 @@ extension GeneratedToolCreationPlan {
             category: category,
             appKind: appKind,
             sandboxPermissions: [],
-            resourcePermissions: []
+            resourcePermissions: [],
+            palette: palette
         )
     }
 }
@@ -404,6 +415,9 @@ struct ToolGenerationPlanningClient: Sendable {
 
         Allowed resourcePermissions values:
         \(GeneratedAppResourcePermission.allCases.map(\.rawValue).joined(separator: ", "))
+
+        Allowed palette values:
+        \(ToolIconClient.hostedIconPaletteNames.joined(separator: ", "))
         """
     }
 
@@ -443,6 +457,11 @@ struct ToolGenerationPlanningClient: Sendable {
         - Do not add permissions for hypothetical future features.
         - Use only exact values from the corresponding allowed lists.
         - Use an empty list when no permission in a group is required.
+
+        palette:
+        - Must be one exact palette name from the allowed palette list in the prompt, or an empty string.
+        - Choose the palette whose mood best fits the app's purpose: calm apps suit cool or muted palettes, playful apps suit warm or bright ones, serious utilities suit neutral ones.
+        - Use an empty string when no palette clearly fits.
         """
     }
 
@@ -506,7 +525,12 @@ struct ToolGenerationPlanningClient: Sendable {
             suggestedResourcePermissions: GeneratedAppResourcePermissions(
                 response.resourcePermissions.compactMap(
                     GeneratedAppResourcePermission.init(rawValue:))
+            ),
+            suggestedIconPalette: ToolIconClient.hostedIconPaletteNames.contains(
+                response.palette.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             )
+                ? response.palette.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                : nil
         )
     }
 }
@@ -651,6 +675,8 @@ struct ToolPromptRefinementClient: Sendable {
         - For menu bar apps, describe a compact menu bar popover utility with concise controls, short labels, bounded size, and a focused quick workflow. Do not expand the request into a full-size desktop app, dashboard, sidebar layout, multi-pane workflow, or large complicated UI unless explicitly requested.
         - For window apps, describe a normal native macOS window app layout when appropriate.
         - Prefer one polished primary workflow over many secondary workflows while preserving all requested features.
+        - Keep the refined prompt under 200 words. Expansion means sharper decisions, not more scope.
+        - Make every implicit choice explicit: default values, sample content, empty-state text, and the primary action, so the coding agent never has to guess.
         - If a requested feature can be implemented with a native Apple framework such as Vision for OCR, PDFKit for PDFs, or AVFoundation for media, explicitly call it out.
         - Must describe a self-contained Mac app unless the user explicitly requests external services.
         - May include local persistence, local files, import/export, and open/save flows when they make sense.
@@ -672,8 +698,8 @@ struct ToolPromptRefinementClient: Sendable {
         - Must preserve whether the generated app is a window app or menu bar app.
         - For menu bar apps, describe a compact menu bar popover utility with concise controls, short labels, bounded size, and a focused quick workflow. Do not expand the request into a full-size desktop app, dashboard, sidebar layout, multi-pane workflow, or large complicated UI.
         - For window apps, describe a normal native macOS window app layout when appropriate.
-        - Choose at most 3 core user-facing features.
-        - If the user lists many features, preserve the most important ones and explicitly simplify or omit the rest.
+        - Choose at most 3 core user-facing features for the first version.
+        - Never drop a requested feature silently. If the user lists more than 3 features, build the prompt around the 3 most important ones and end it with: "Deferred for a later version: <name the remaining features>".
         - Prefer one polished primary workflow over many secondary workflows.
         - If a requested feature can be implemented with a native Apple framework such as Vision for OCR, PDFKit for PDFs, AVFoundation for media etc., explicitly call it out.
         - Must describe a self-contained Mac app, with direct internet requests allowed only when the user's request requires them.

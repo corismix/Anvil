@@ -14,6 +14,7 @@ struct SingleFileToolGenerationRuntime {
         let layout: ToolPackageLayout
         let contentViewPath: String
         let iconPrompt: String?
+        let iconPaletteName: String?
         let settings: ToolGenerationSettings
     }
 
@@ -101,6 +102,7 @@ struct SingleFileToolGenerationRuntime {
             layout: layout,
             contentViewPath: layout.contentViewSourcePath,
             iconPrompt: nil,
+            iconPaletteName: nil,
             settings: settings
         )
     }
@@ -158,6 +160,7 @@ struct SingleFileToolGenerationRuntime {
             layout: layout,
             contentViewPath: contentViewPath,
             iconPrompt: metadata.iconPrompt,
+            iconPaletteName: metadata.suggestedIconPalette,
             settings: resolvedSettings
         )
     }
@@ -275,6 +278,7 @@ struct SingleFileToolGenerationRuntime {
                 try await Self.generateIconAssets(
                     displayName: setup.displayName,
                     iconPrompt: setup.iconPrompt,
+                    iconPaletteName: setup.iconPaletteName,
                     layout: setup.layout,
                     imageGenerationProvider: imageGenerationProvider,
                     iconClient: iconClient
@@ -644,6 +648,7 @@ struct SingleFileToolGenerationRuntime {
                     layout: layout,
                     contentViewPath: contentViewPath,
                     userPrompt: prompt,
+                    isEdit: true,
                     settings: settings,
                     lifecycle: lifecycle
                 )
@@ -769,6 +774,7 @@ struct SingleFileToolGenerationRuntime {
         layout: ToolPackageLayout,
         contentViewPath: String,
         userPrompt: String,
+        isEdit: Bool = false,
         settings: ToolGenerationSettings,
         lifecycle: ToolGenerationLifecycle
     ) async throws {
@@ -796,6 +802,7 @@ struct SingleFileToolGenerationRuntime {
             appKind: settings.appKind,
             sandboxEnabled: settings.sandboxEnabled,
             userPrompt: userPrompt,
+            isEdit: isEdit,
             modelIdentifier: context.codingAgentModelIdentifier,
             modelFamily: context.codingAgentModelFamily,
             contextWindowTokens: context.codingAgentContextWindowTokens,
@@ -852,6 +859,7 @@ struct SingleFileToolGenerationRuntime {
         layout: ToolPackageLayout,
         contentViewPath: String,
         userPrompt: String,
+        isEdit: Bool = false,
         settings: ToolGenerationSettings,
         lifecycle: ToolGenerationLifecycle
     ) async throws {
@@ -860,6 +868,7 @@ struct SingleFileToolGenerationRuntime {
             layout: layout,
             contentViewPath: contentViewPath,
             userPrompt: userPrompt,
+            isEdit: isEdit,
             settings: settings,
             lifecycle: lifecycle
         )
@@ -903,6 +912,7 @@ struct SingleFileToolGenerationRuntime {
         layout: ToolPackageLayout,
         contentViewPath: String,
         userPrompt: String,
+        isEdit: Bool = false,
         settings: ToolGenerationSettings,
         lifecycle: ToolGenerationLifecycle
     ) async throws {
@@ -927,6 +937,7 @@ struct SingleFileToolGenerationRuntime {
                 layout: layout,
                 contentViewPath: contentViewPath,
                 userPrompt: userPrompt,
+                isEdit: isEdit,
                 settings: settings,
                 lifecycle: lifecycle
             )
@@ -1220,6 +1231,7 @@ struct SingleFileToolGenerationRuntime {
     nonisolated private static func generateIconAssets(
         displayName: String,
         iconPrompt: String?,
+        iconPaletteName: String? = nil,
         layout: ToolPackageLayout,
         imageGenerationProvider: ToolImageGenerationProvider,
         iconClient: ToolIconClient
@@ -1230,6 +1242,7 @@ struct SingleFileToolGenerationRuntime {
                 ToolIconRequest(
                     displayName: displayName,
                     iconPrompt: iconPrompt,
+                    paletteName: iconPaletteName,
                     layout: layout,
                     imageProvider: imageGenerationProvider
                 )

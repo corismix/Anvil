@@ -41,7 +41,8 @@ extension AgentPipelineTests {
                 resourcePermissions: [
                     GeneratedAppResourcePermission.camera.rawValue,
                     "unknown-resource-permission",
-                ]
+                ],
+                palette: ""
             )
         )
 
@@ -172,6 +173,42 @@ extension AgentPipelineTests {
         )
 
         #expect(suggestion.menuBarSystemImage == ToolMenuBarSymbol.fallback)
+    }
+
+    @MainActor
+    @Test
+    func metadataSuggestionValidatesIconPaletteAgainstAllowlist() async throws {
+        let validResponse = StructuredMetadataResponse(
+            creationPlan: GeneratedToolCreationPlan(
+                displayName: "Breath Pacer",
+                iconPrompt: "Slow concentric circles",
+                palette: "mint"
+            )
+        )
+        let validSuggestion = await ToolGenerationPlanningClient.live().planCreation(
+            userPrompt: "Build a breathing pacer",
+            invoker: Self.makeInvoker(
+                languageModel: StructuredMetadataLanguageModel(response: validResponse),
+                generationOptions: GenerationOptions(maximumResponseTokens: 4096)
+            )
+        )
+        #expect(validSuggestion.suggestedIconPalette == "mint")
+
+        let invalidResponse = StructuredMetadataResponse(
+            creationPlan: GeneratedToolCreationPlan(
+                displayName: "Breath Pacer",
+                iconPrompt: "Slow concentric circles",
+                palette: "not-a-palette"
+            )
+        )
+        let invalidSuggestion = await ToolGenerationPlanningClient.live().planCreation(
+            userPrompt: "Build a breathing pacer",
+            invoker: Self.makeInvoker(
+                languageModel: StructuredMetadataLanguageModel(response: invalidResponse),
+                generationOptions: GenerationOptions(maximumResponseTokens: 4096)
+            )
+        )
+        #expect(invalidSuggestion.suggestedIconPalette == nil)
     }
 
     @MainActor

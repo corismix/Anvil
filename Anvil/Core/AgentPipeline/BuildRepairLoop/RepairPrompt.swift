@@ -91,7 +91,8 @@ extension ContentViewBuildRepairLoop {
             diagnostics: promptPlan.targetDiagnostics,
             source: originalSource,
             editableSnippets: promptPlan.snippets,
-            maximumPatchBlocks: maximumPatchBlocks
+            maximumPatchBlocks: maximumPatchBlocks,
+            sharesRootCause: context.pipelineConfiguration.batchesRepairDiagnostics
         )
         AgentDiagnosticsLog.append(
             """

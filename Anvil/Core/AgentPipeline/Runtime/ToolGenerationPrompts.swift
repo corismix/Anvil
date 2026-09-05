@@ -35,6 +35,12 @@ enum ToolGenerationPrompts {
         Break complex SwiftUI bodies into small same-file helper views/properties to avoid type-checker timeouts.
         If what the user asks is too complicated, simplify it so it fits in the ContentView.
         Prefer Apple platform frameworks and native APIs when they fit the request, such as Vision for OCR, PDFKit for PDFs, AVFoundation for media etc.
+        Never use weak self in a SwiftUI View; views are value types. Only use weak self inside classes.
+        Never use optional chaining on self in a View, such as self?.property; self is not optional.
+        A class used with @ObservedObject or @StateObject must conform to ObservableObject and publish its changes with @Published.
+        Define exactly one body property in ContentView.
+        Write comparison operators with spaces on both sides, such as if count == 1, especially in if and while conditions.
+        Iterate ranges like 0..<items.count; never mix Bool values into range expressions.
         Use these stable sections when possible:
         // MARK: - State
         // MARK: - Body
@@ -153,6 +159,7 @@ enum ToolGenerationPrompts {
         User request: \(userPrompt)
         Fixed package and target name: \(executableName).
         Rewrite ContentView.swift only.
+        Preserve all existing behavior, structure, and visual design that is unrelated to the request.
         Existing ContentView.swift:
         \(existingSource)
         """
@@ -271,13 +278,20 @@ enum ToolGenerationPrompts {
         previousOutcome: String?,
         compactionSummary: String?,
         maximumPatchBlocks: Int,
-        patchFormat: ToolSourcePatchFormat = .searchReplace
+        patchFormat: ToolSourcePatchFormat = .searchReplace,
+        sharesRootCause: Bool = false
     ) -> String {
         var sections = [
             "Build failed for ContentView.swift.",
             "Compiler diagnostics:",
             formattedDiagnostics(diagnostics),
         ]
+
+        if sharesRootCause && diagnostics.count > 1 {
+            sections.append(
+                "These \(diagnostics.count) diagnostics share one root cause. Fix the root cause; do not patch each reported site independently."
+            )
+        }
 
         if let previousOutcome, !previousOutcome.isEmpty {
             sections.append(

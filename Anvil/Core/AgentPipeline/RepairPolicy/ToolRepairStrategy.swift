@@ -307,7 +307,7 @@ struct ToolGenerationPipelineConfiguration: Equatable, Sendable {
             codingAgent: .anvilFlame,
             repairStrategy: repairStrategy,
             maximumGenerationAttempts: 1,
-            batchesRepairDiagnostics: false,
+            batchesRepairDiagnostics: true,
             restoresBestCandidateOnFailure: false,
             rollsBackModelRepairWhenErrorCountIncreases: false,
             regeneratesAfterModelRepairStall: false,

@@ -6,23 +6,27 @@ import ImageIO
 nonisolated struct ToolIconRequest: Equatable, Sendable {
     let displayName: String
     let iconPrompt: String?
+    let paletteName: String?
     let layout: ToolPackageLayout
     let imageProvider: ToolImageGenerationProvider
 
     init(
         displayName: String,
         iconPrompt: String? = nil,
+        paletteName: String? = nil,
         layout: ToolPackageLayout,
         imageProvider: ToolImageGenerationProvider = .disabled
     ) {
         self.displayName = displayName
         self.iconPrompt = iconPrompt
+        self.paletteName = paletteName
         self.layout = layout
         self.imageProvider = imageProvider
     }
 }
 
 nonisolated private struct ToolIconPalette: Sendable {
+    let name: String
     let description: String
     let backgroundStartRGB: UInt32
     let backgroundEndRGB: UInt32
@@ -43,9 +47,9 @@ actor ToolHostedIconPaletteStore {
         ToolIconClient.hostedIconPalettes[paletteIndex(for: displayName)]
     }
 
-    func paletteIndex(for displayName: String) -> Int {
+    func paletteIndex(for displayName: String, preferredIndex suggestedIndex: Int? = nil) -> Int {
         let paletteCount = ToolIconClient.hostedIconPalettes.count
-        let preferredIndex = ToolIconClient.hostedIconPaletteIndex(for: displayName)
+        let preferredIndex = suggestedIndex ?? ToolIconClient.hostedIconPaletteIndex(for: displayName)
         let recentIndices = recentPaletteIndices(paletteCount: paletteCount)
         let excludedIndices = Set(recentIndices)
         let selectedIndex =
@@ -123,8 +127,12 @@ struct ToolIconClient: Sendable {
 
             var selectedPaletteIndex: Int?
             if request.imageProvider != .imagePlayground {
+                let suggestedIndex = request.paletteName.flatMap {
+                    Self.hostedIconPaletteIndex(named: $0)
+                }
                 selectedPaletteIndex = await hostedIconPaletteStore.paletteIndex(
-                    for: request.displayName
+                    for: request.displayName,
+                    preferredIndex: suggestedIndex
                 )
             }
 
@@ -269,6 +277,7 @@ struct ToolIconClient: Sendable {
             - Render a clean, softly dimensional vector-like illustration: more tactile than flat graphics, but never photorealistic, painterly, or cartoonish.
             - Show one large, centered primary symbol and at most one simple supporting symbol. Fill roughly two-thirds of the canvas. Do not create a miniature scene, diorama, collection of small objects, or detailed environment.
             - Use simple geometric construction, smooth rounded edges, medium-width bevels, crisp silhouettes, and restrained internal detail. Small repeated details should be reduced to a few clear shapes.
+            - Avoid realistic human faces, hands, and bodies; use abstract or symbolic figures only.
             - Use smooth satin or lightly enameled surfaces with one restrained translucent accent when appropriate. Avoid realistic wood, fabric, paper fibers, grime, metallic noise, and other photographic textures.
             - Use a nearly front-facing orthographic view with only subtle depth. Avoid dramatic camera angles, deep perspective, and exaggerated foreshortening.
             - Light every icon with one broad soft source from the upper left, gentle ambient occlusion, and one short soft contact shadow toward the lower right. Avoid cinematic lighting, hard reflections, bloom, and dramatic glow.
@@ -284,42 +293,49 @@ struct ToolIconClient: Sendable {
 
     nonisolated private static let iconPalettes = [
         ToolIconPalette(
+            name: "coral",
             description: "a warm coral-to-apricot background with cream and deep plum accents",
             backgroundStartRGB: 0xF2645A,
             backgroundEndRGB: 0xF6AE6B,
             foregroundRGB: 0xFFF4E6
         ),
         ToolIconPalette(
+            name: "amber",
             description: "a golden amber-to-ochre background with ivory and deep cocoa accents",
             backgroundStartRGB: 0xF2A93B,
             backgroundEndRGB: 0xC78316,
             foregroundRGB: 0xFFF8E5
         ),
         ToolIconPalette(
+            name: "emerald",
             description: "an emerald-to-jade background with warm ivory and dark forest accents",
             backgroundStartRGB: 0x087F5B,
             backgroundEndRGB: 0x3DB58B,
             foregroundRGB: 0xFBF3D5
         ),
         ToolIconPalette(
+            name: "violet",
             description: "a violet-to-orchid background with soft lilac and deep aubergine accents",
             backgroundStartRGB: 0x6750C8,
             backgroundEndRGB: 0xB15BC3,
             foregroundRGB: 0xEADFFF
         ),
         ToolIconPalette(
+            name: "rose",
             description: "a rose-to-raspberry background with pale blush and burgundy accents",
             backgroundStartRGB: 0xE34D78,
             backgroundEndRGB: 0xA71952,
             foregroundRGB: 0xFFE1E9
         ),
         ToolIconPalette(
+            name: "turquoise",
             description: "a turquoise-to-teal background with pale mint and deep teal accents",
             backgroundStartRGB: 0x19A7A0,
             backgroundEndRGB: 0x087F80,
             foregroundRGB: 0xD9FFF4
         ),
         ToolIconPalette(
+            name: "charcoal",
             description:
                 "a charcoal-to-graphite background with silver and muted chartreuse accents",
             backgroundStartRGB: 0x2F3338,
@@ -327,18 +343,21 @@ struct ToolIconClient: Sendable {
             foregroundRGB: 0xE7EBEF
         ),
         ToolIconPalette(
+            name: "sand",
             description: "a warm sand-to-terracotta background with ivory and dark umber accents",
             backgroundStartRGB: 0xD8A56D,
             backgroundEndRGB: 0xB85C3C,
             foregroundRGB: 0xFFF3DC
         ),
         ToolIconPalette(
+            name: "cobalt",
             description: "a cobalt-to-indigo background with pale sky and midnight navy accents",
             backgroundStartRGB: 0x2563D9,
             backgroundEndRGB: 0x4338A8,
             foregroundRGB: 0xDCEEFF
         ),
         ToolIconPalette(
+            name: "crimson",
             description:
                 "a crimson-to-vermilion background with warm ivory and deep maroon accents",
             backgroundStartRGB: 0xC92A3B,
@@ -346,60 +365,70 @@ struct ToolIconClient: Sendable {
             foregroundRGB: 0xFFF1E3
         ),
         ToolIconPalette(
+            name: "lemon",
             description: "a lemon-to-chartreuse background with soft cream and dark olive accents",
             backgroundStartRGB: 0xF0D63C,
             backgroundEndRGB: 0xA8C832,
             foregroundRGB: 0x384218
         ),
         ToolIconPalette(
+            name: "periwinkle",
             description: "a periwinkle-to-lavender background with pearl and deep ink accents",
             backgroundStartRGB: 0x7C83E6,
             backgroundEndRGB: 0xB9A7ED,
             foregroundRGB: 0xF8F4FF
         ),
         ToolIconPalette(
+            name: "copper",
             description: "a copper-to-russet background with parchment and espresso accents",
             backgroundStartRGB: 0xB76536,
             backgroundEndRGB: 0x7C3A25,
             foregroundRGB: 0xF6E4C5
         ),
         ToolIconPalette(
+            name: "cyan",
             description: "a cyan-to-cerulean background with icy white and deep navy accents",
             backgroundStartRGB: 0x19BEE6,
             backgroundEndRGB: 0x1677C8,
             foregroundRGB: 0xE8FAFF
         ),
         ToolIconPalette(
+            name: "magenta",
             description: "a magenta-to-fuchsia background with pale pink and dark mulberry accents",
             backgroundStartRGB: 0xCC3FAF,
             backgroundEndRGB: 0xF05ACB,
             foregroundRGB: 0xFFE0F5
         ),
         ToolIconPalette(
+            name: "moss",
             description: "a moss-to-olive background with warm linen and deep pine accents",
             backgroundStartRGB: 0x6E8B3D,
             backgroundEndRGB: 0x9A9B42,
             foregroundRGB: 0xF5E8CE
         ),
         ToolIconPalette(
+            name: "plum",
             description: "a plum-to-wine background with soft mauve and near-black accents",
             backgroundStartRGB: 0x5F2B68,
             backgroundEndRGB: 0x8A274A,
             foregroundRGB: 0xE8C4DA
         ),
         ToolIconPalette(
+            name: "peach",
             description: "a peach-to-salmon background with vanilla and deep aubergine accents",
             backgroundStartRGB: 0xF6A675,
             backgroundEndRGB: 0xE96F68,
             foregroundRGB: 0xFFF0D1
         ),
         ToolIconPalette(
+            name: "slate",
             description: "a slate-to-steel-blue background with cool mist and midnight accents",
             backgroundStartRGB: 0x52677D,
             backgroundEndRGB: 0x708EAA,
             foregroundRGB: 0xE3EDF4
         ),
         ToolIconPalette(
+            name: "mint",
             description: "a mint-to-seafoam background with warm ivory and dark spruce accents",
             backgroundStartRGB: 0x7ADFC2,
             backgroundEndRGB: 0x3FAF99,
@@ -409,6 +438,14 @@ struct ToolIconClient: Sendable {
 
     nonisolated static var hostedIconPalettes: [String] {
         iconPalettes.map(\.description)
+    }
+
+    nonisolated static var hostedIconPaletteNames: [String] {
+        iconPalettes.map(\.name)
+    }
+
+    nonisolated static func hostedIconPaletteIndex(named name: String) -> Int? {
+        iconPalettes.firstIndex { $0.name == name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
     }
 
     nonisolated static func hostedIconPalette(for displayName: String) -> String {

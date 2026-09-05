@@ -44,6 +44,7 @@ nonisolated struct CodexAgentRequest: Sendable {
     let appKind: ToolAppKind
     let sandboxEnabled: Bool
     let userPrompt: String
+    var isEdit: Bool = false
     let modelIdentifier: String
     let modelFamily: ToolModelFamily
     let contextWindowTokens: Int?
@@ -745,10 +746,13 @@ extension CodexAgentClient {
             - Define ContentView as the root View, but you may create helper types in the same file. Helper types must not conform to App.
             - An entry point already exists and already calls ContentView, so do not add another @main or App type.
             - This is a macOS SwiftUI app. Do not use iOS-only modifiers.
-            - This is a local only app. Do not add or imply a separate backend service, custom server component, account system, iCloud/CloudKit integration, push notifications, analytics, subscriptions, or cross-device sync.
+            \(request.isEdit ? "- This is an edit to an existing app. Preserve all existing behavior, structure, and visual design that is unrelated to the request.\n" : "")- This is a local only app. Do not add or imply a separate backend service, custom server component, account system, iCloud/CloudKit integration, push notifications, analytics, subscriptions, or cross-device sync.
             - Make the app feel native to macOS.
             - Games, drawing canvases, and highly visual toys may use custom graphics and game-like UI, but they should still use sensible macOS window sizing, pointer and keyboard behavior, and local-only state.
             - Apple frameworks and APIs are allowed and encouraged over custom solutions, but do not add any third-party dependencies.
+            - Never use weak self in a SwiftUI View; views are value types. Only use weak self inside classes.
+            - A class used with @ObservedObject or @StateObject must conform to ObservableObject and publish its changes with @Published.
+            - Define exactly one body property in ContentView.
             \(finalRules)
             """
     }

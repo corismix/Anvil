@@ -43,7 +43,8 @@ final class ContentViewRepairConversation {
         diagnostics: [SwiftCompilerDiagnostic],
         source: String,
         editableSnippets: [ContentViewRepairSnippet],
-        maximumPatchBlocks: Int
+        maximumPatchBlocks: Int,
+        sharesRootCause: Bool = false
     ) -> String {
         let includeSource = !sourceIsCurrentInSession
         let prompt = ToolGenerationPrompts.conversationalRepairPrompt(
@@ -53,7 +54,8 @@ final class ContentViewRepairConversation {
             previousOutcome: previousOutcome,
             compactionSummary: includeSource ? compactionSummary : nil,
             maximumPatchBlocks: maximumPatchBlocks,
-            patchFormat: patchFormat
+            patchFormat: patchFormat,
+            sharesRootCause: sharesRootCause
         )
         if includeSource {
             sourceIsCurrentInSession = true
