@@ -535,7 +535,7 @@ extension AgentPipelineTests {
 
     @MainActor
     @Test
-    func editModeKeepsOriginalPromptAndSkipsMetadataRefinement() async throws {
+    func editModeRefinesPromptAndSkipsMetadataPlanning() async throws {
         let toolsDirectory = try Self.makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: toolsDirectory) }
 
@@ -576,10 +576,9 @@ extension AgentPipelineTests {
         )
 
         let prompts = await promptCapture.prompts
-        #expect(prompts.first?.contains("User request: Change old to new") == true)
-        #expect(!(prompts.first?.contains("Rewrite the whole app with unrelated features.") ?? false))
+        #expect(prompts.first?.contains("User request: Rewrite the whole app with unrelated features.") == true)
         #expect(await metadataCapture.count == 0)
-        #expect(await promptRefinementCapture.count == 0)
+        #expect(await promptRefinementCapture.count == 1)
     }
 
     @MainActor
@@ -673,7 +672,7 @@ extension AgentPipelineTests {
     @Test
     func coverageCheckReportsMissingFeaturesFromModel() async throws {
         let response = StructuredMetadataResponse(
-            coverageReport: GeneratedToolCoverageReport(missingFeatures: ["PNG export", " empty "])
+            coverageReport: GeneratedToolCoverageReport(missingFeatures: ["PNG export", "   "])
         )
         let missing = await ToolCoverageClient.live().missingFeatures(
             brief: "Build a paint app with PNG export",

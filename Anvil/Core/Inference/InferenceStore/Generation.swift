@@ -55,6 +55,7 @@ extension InferenceStore {
             ),
             pipelineConfiguration: pipelineConfiguration(for: selectedModel, codingAgent: codingAgent),
             promptRefinementEnabled: generationPreferences.generatedPromptRefinementEnabled,
+            coverageCheckEnabled: AnvilFeatureFlags.isCoverageCheckEnabled(),
             codingAgentModelIdentifier: selectedModel.identifier,
             codingAgentModelFamily: ToolModelFamily.resolved(
                 model: selectedModel,

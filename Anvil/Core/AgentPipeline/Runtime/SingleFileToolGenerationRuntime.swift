@@ -884,7 +884,7 @@ struct SingleFileToolGenerationRuntime {
         setup: CreateToolSetup,
         lifecycle: ToolGenerationLifecycle
     ) async throws {
-        guard AnvilFeatureFlags.isCoverageCheckEnabled() else { return }
+        guard context.coverageCheckEnabled else { return }
         let source = coverageSourceSnapshot(layout: setup.layout)
         guard !source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         try await lifecycle.updatePhase(.generating, .verifyingCoverage, nil)

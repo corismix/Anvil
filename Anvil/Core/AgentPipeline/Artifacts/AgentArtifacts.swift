@@ -8,6 +8,7 @@ nonisolated struct AgentLanguageModelContext {
     let languageModelInvoker: ToolLanguageModelInvoker
     let pipelineConfiguration: ToolGenerationPipelineConfiguration
     let promptRefinementEnabled: Bool
+    let coverageCheckEnabled: Bool
     let codingAgentModelIdentifier: String
     let codingAgentModelFamily: ToolModelFamily
     let codingAgentContextWindowTokens: Int?
@@ -34,6 +35,7 @@ nonisolated struct AgentLanguageModelContext {
         metadata: ToolGenerationStageConfiguration,
         pipelineConfiguration: ToolGenerationPipelineConfiguration,
         promptRefinementEnabled: Bool = true,
+        coverageCheckEnabled: Bool = true,
         codingAgentModelIdentifier: String = "",
         codingAgentModelFamily: ToolModelFamily = .other,
         codingAgentContextWindowTokens: Int? = nil,
@@ -54,6 +56,7 @@ nonisolated struct AgentLanguageModelContext {
         )
         self.pipelineConfiguration = pipelineConfiguration
         self.promptRefinementEnabled = promptRefinementEnabled
+        self.coverageCheckEnabled = coverageCheckEnabled
         self.codingAgentModelIdentifier = codingAgentModelIdentifier
         self.codingAgentModelFamily = codingAgentModelFamily
         self.codingAgentContextWindowTokens = codingAgentContextWindowTokens
@@ -71,6 +74,7 @@ nonisolated struct AgentLanguageModelContext {
         streaming: Bool = ToolGenerationOptionsResolver.defaultStreaming,
         pipelineConfiguration: ToolGenerationPipelineConfiguration,
         promptRefinementEnabled: Bool = true,
+        coverageCheckEnabled: Bool = true,
         codingAgentModelIdentifier: String = "",
         codingAgentModelFamily: ToolModelFamily = .other,
         codingAgentContextWindowTokens: Int? = nil,
@@ -102,6 +106,7 @@ nonisolated struct AgentLanguageModelContext {
             ),
             pipelineConfiguration: pipelineConfiguration,
             promptRefinementEnabled: promptRefinementEnabled,
+            coverageCheckEnabled: coverageCheckEnabled,
             codingAgentModelIdentifier: codingAgentModelIdentifier,
             codingAgentModelFamily: codingAgentModelFamily,
             codingAgentContextWindowTokens: codingAgentContextWindowTokens,

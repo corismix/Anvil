@@ -242,6 +242,7 @@ struct ToolGenerationRuntimeContext {
     let planningClient: ToolGenerationPlanningClient
     let promptRefinementClient: ToolPromptRefinementClient
     let promptRefinementEnabled: Bool
+    let coverageCheckEnabled: Bool
     let versionBackupClient: ToolVersionBackupClient
     let gitClient: ToolGitClient
     let projectModeStore: ToolProjectModeStore
@@ -293,6 +294,7 @@ struct ToolGenerationRuntimeContext {
         self.planningClient = dependencies.planningClient
         self.promptRefinementClient = dependencies.promptRefinementClient
         self.promptRefinementEnabled = languageModelContext.promptRefinementEnabled
+        self.coverageCheckEnabled = languageModelContext.coverageCheckEnabled
         self.versionBackupClient = dependencies.versionBackupClient
         self.gitClient = dependencies.gitClient
         self.projectModeStore = dependencies.projectModeStore
