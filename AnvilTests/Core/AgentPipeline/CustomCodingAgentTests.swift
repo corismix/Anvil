@@ -440,6 +440,129 @@ struct CustomCodingAgentTests {
             atPath: layout.sourceDirectoryURL.appendingPathComponent("Extra.swift").path
         ))
     }
+
+    @MainActor
+    @Test
+    func verificationRegeneratesInvalidManifestAndRetriesBuild() async throws {
+        let toolsDirectory = try AgentPipelineTests.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: toolsDirectory) }
+
+        let runner = CustomCodingAgent(name: "Manifest Runner", command: "agent {{prompt}}")
+        let client = CustomCodingAgentClient { request in
+            let layout = ToolPackageLayout(
+                packageRootURL: request.packageRootURL,
+                executableName: "ManifestRepair"
+            )
+            try """
+            import SwiftUI
+
+            struct ContentView: View {
+                var body: some View {
+                    Text("Recovered paint app")
+                }
+            }
+            """.write(
+                to: layout.sourceDirectoryURL.appendingPathComponent("ContentView.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+            return CustomCodingAgentResult(
+                terminationStatus: 0,
+                transcriptURL: request.packageRootURL.appendingPathComponent("transcript.jsonl")
+            )
+        }
+        let builds = ManifestFailureThenSuccess()
+        let processClient = SwiftPackageProcessClient(
+            build: { packageRoot in
+                await builds.next(packageRoot: packageRoot)
+            },
+            showBinPath: { packageRoot in
+                packageRoot.appendingPathComponent(".build/debug", isDirectory: true)
+            },
+            launch: { _ in },
+            stripQuarantine: { _ in }
+        )
+        let runtime = AgentPipelineTests.makeRuntime(
+            languageModel: EmptyLanguageModel(),
+            pipelineConfiguration: .custom(),
+            toolsDirectoryURL: toolsDirectory,
+            processClient: processClient,
+            planningClient: ToolGenerationPlanningClient { _ in
+                ToolCreationPlan(displayName: "Manifest Repair", iconPrompt: "")
+            },
+            customCodingAgentClient: client,
+            customCodingAgent: runner
+        )
+
+        _ = try await runtime.generateTool(for: "Build a paint app", settings: .default)
+
+        #expect(await builds.count == 2)
+        let layout = ToolPackageLayout(
+            packageRootURL: toolsDirectory.appendingPathComponent("manifest-repair", isDirectory: true),
+            executableName: "ManifestRepair"
+        )
+        let manifest = try String(contentsOf: layout.packageManifestURL, encoding: .utf8)
+        #expect(manifest == layout.packageManifestContent())
+    }
+
+    @MainActor
+    @Test
+    func verificationDoesNotRetryBuildForContentViewErrors() async throws {
+        let toolsDirectory = try AgentPipelineTests.makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: toolsDirectory) }
+
+        let runner = CustomCodingAgent(name: "ContentView Runner", command: "agent {{prompt}}")
+        let client = CustomCodingAgentClient { request in
+            let layout = ToolPackageLayout(
+                packageRootURL: request.packageRootURL,
+                executableName: "ContentViewFailure"
+            )
+            try """
+            import SwiftUI
+
+            struct ContentView: View {
+                var body: some View {
+                    Text("broken").definitelyNotReal()
+                }
+            }
+            """.write(
+                to: layout.sourceDirectoryURL.appendingPathComponent("ContentView.swift"),
+                atomically: true,
+                encoding: .utf8
+            )
+            return CustomCodingAgentResult(
+                terminationStatus: 0,
+                transcriptURL: request.packageRootURL.appendingPathComponent("transcript.jsonl")
+            )
+        }
+        let builds = ContentViewFailureBuilds(executableName: "ContentViewFailure")
+        let processClient = SwiftPackageProcessClient(
+            build: { packageRoot in
+                await builds.next(packageRoot: packageRoot)
+            },
+            showBinPath: { packageRoot in
+                packageRoot.appendingPathComponent(".build/debug", isDirectory: true)
+            },
+            launch: { _ in },
+            stripQuarantine: { _ in }
+        )
+        let runtime = AgentPipelineTests.makeRuntime(
+            languageModel: EmptyLanguageModel(),
+            pipelineConfiguration: .custom(),
+            toolsDirectoryURL: toolsDirectory,
+            processClient: processClient,
+            planningClient: ToolGenerationPlanningClient { _ in
+                ToolCreationPlan(displayName: "Content View Failure", iconPrompt: "")
+            },
+            customCodingAgentClient: client,
+            customCodingAgent: runner
+        )
+
+        await #expect(throws: ToolGenerationError.self) {
+            _ = try await runtime.generateTool(for: "Build a paint app", settings: .default)
+        }
+        #expect(await builds.count == 1)
+    }
 }
 
 private actor CustomOutputRecorder {

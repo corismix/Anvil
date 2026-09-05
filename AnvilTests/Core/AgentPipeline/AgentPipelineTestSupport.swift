@@ -654,6 +654,39 @@ actor BuildFailureThenSuccess {
     }
 }
 
+actor ManifestFailureThenSuccess {
+    private(set) var count = 0
+
+    func next(packageRoot: URL) -> SwiftPackageBuildResult {
+        count += 1
+        guard count == 1 else {
+            return SwiftPackageBuildResult(succeeded: true, stdout: "", stderr: "", terminationStatus: 0)
+        }
+
+        let output = """
+        \(packageRoot.path)/Package.swift:6:24: error: expected ',' separator
+        """
+        return SwiftPackageBuildResult(succeeded: false, stdout: output, stderr: "", terminationStatus: 1)
+    }
+}
+
+actor ContentViewFailureBuilds {
+    private let executableName: String
+    private(set) var count = 0
+
+    init(executableName: String) {
+        self.executableName = executableName
+    }
+
+    func next(packageRoot: URL) -> SwiftPackageBuildResult {
+        count += 1
+        let output = """
+        \(packageRoot.path)/Sources/\(executableName)/ContentView.swift:5:25: error: value of type 'Text' has no member 'definitelyNotReal'
+        """
+        return SwiftPackageBuildResult(succeeded: false, stdout: output, stderr: "", terminationStatus: 1)
+    }
+}
+
 actor DeterministicSpacingBuilds {
     private let executableName: String
     private let repeatedDiagnosticCount: Int

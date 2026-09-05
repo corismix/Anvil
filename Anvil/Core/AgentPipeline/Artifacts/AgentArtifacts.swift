@@ -628,7 +628,7 @@ nonisolated struct ToolPackageLayout: Equatable, Sendable {
             "import PackageDescription",
             "",
             "let package = Package(",
-            "    name: \"\(executableName)\"",
+            "    name: \"\(executableName)\",",
             "    platforms: [.macOS(.v26)],",
         ]
         if !dependencies.isEmpty {

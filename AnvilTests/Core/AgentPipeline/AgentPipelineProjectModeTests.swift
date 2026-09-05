@@ -74,6 +74,74 @@ struct AgentPipelineProjectModeTests {
     }
 
     @Test
+    func packageManifestMatchesGoldenTemplateWithoutDependencies() throws {
+        let layout = ToolPackageLayout(
+            packageRootURL: URL(fileURLWithPath: "/tmp/sample"),
+            executableName: "SampleApp"
+        )
+        let expected = """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+            name: "SampleApp",
+            platforms: [.macOS(.v26)],
+            targets: [
+                .executableTarget(
+                    name: "SampleApp"
+                ),
+            ],
+            swiftLanguageModes: [.v5]
+        )
+
+        """
+        #expect(layout.packageManifestContent() == expected)
+    }
+
+    @Test
+    func packageManifestMatchesGoldenTemplateWithDependencies() throws {
+        let layout = ToolPackageLayout(
+            packageRootURL: URL(fileURLWithPath: "/tmp/sample"),
+            executableName: "SampleApp"
+        )
+        let expected = """
+        // swift-tools-version: 6.2
+
+        import PackageDescription
+
+        let package = Package(
+            name: "SampleApp",
+            platforms: [.macOS(.v26)],
+            dependencies: [
+                .package(url: "https://github.com/apple/swift-algorithms.git", from: "1.2.0"),
+            ],
+            targets: [
+                .executableTarget(
+                    name: "SampleApp",
+                    dependencies: [
+                        .product(name: "Algorithms", package: "swift-algorithms"),
+                    ],
+                ),
+            ],
+            swiftLanguageModes: [.v5]
+        )
+
+        """
+        #expect(
+            layout.packageManifestContent(
+                dependencies: [
+                    ToolPackageDependencyRequest(
+                        package: "https://github.com/apple/swift-algorithms.git",
+                        from: "1.2.0",
+                        product: "Algorithms"
+                    )
+                ]
+            ) == expected
+        )
+    }
+
+    @Test
     func packageNameStripsGitSuffix() {
         #expect(
             ToolPackageLayout.packageName(from: "https://github.com/apple/swift-algorithms.git")

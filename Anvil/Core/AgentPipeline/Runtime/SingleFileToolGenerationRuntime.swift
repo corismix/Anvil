@@ -1295,7 +1295,30 @@ struct SingleFileToolGenerationRuntime {
 
         try await lifecycle.updatePhase(.generating, .repairing, nil)
 
-        let result = try await context.processClient.build(layout.packageRootURL)
+        var result = try await context.processClient.build(layout.packageRootURL)
+        if !result.succeeded {
+            let manifestDiagnostics = SwiftPackageProcessClient.parseDiagnostics(
+                in: result.combinedOutput,
+                packageRootURL: layout.packageRootURL
+            )
+            if manifestDiagnostics.contains(where: { $0.relativePath == "Package.swift" }) {
+                // Package.swift is Anvil-owned and restored from the template after
+                // every agent run, so a manifest error means the manifest on disk is
+                // invalid no matter what the agent wrote. Regenerate it from the
+                // template and retry the build once before giving up.
+                AgentDiagnosticsLog.append(
+                    """
+                    Coding-agent verification build failed inside Package.swift; regenerating the Anvil-owned manifest and retrying once.
+                    packageRoot: \(layout.packageRootURL.path)
+                    """
+                )
+                try context.packageMaterializer.writePackageManifest(
+                    layout,
+                    dependencies: dependencyStore.allowed(layout.packageRootURL)
+                )
+                result = try await context.processClient.build(layout.packageRootURL)
+            }
+        }
         guard result.succeeded else {
             let diagnostics = SwiftPackageProcessClient.parseDiagnostics(
                 in: result.combinedOutput,
