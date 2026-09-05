@@ -93,6 +93,7 @@ nonisolated struct CustomCodingAgentTestClient: Sendable {
 enum CustomCodingAgentError: LocalizedError {
     case commandFailed(status: Int32, transcriptURL: URL)
     case nativeAdapterUnavailable(String)
+    case timedOut(seconds: Int, transcriptURL: URL)
 
     var errorDescription: String? {
         switch self {
@@ -100,6 +101,8 @@ enum CustomCodingAgentError: LocalizedError {
             "The custom coding agent exited with status \(status). Transcript: \(transcriptURL.path)"
         case .nativeAdapterUnavailable(let name):
             "\(name) is not installed or not on PATH. Install it or pick another coding agent."
+        case .timedOut(let seconds, let transcriptURL):
+            "The custom coding agent hit its \(seconds)s timeout. Transcript: \(transcriptURL.path)"
         }
     }
 }
@@ -115,6 +118,7 @@ nonisolated struct CustomCodingAgentClient: Sendable {
         let writer = try CustomCodingAgentTranscriptWriter(url: transcript.url)
         let processReference = CustomCodingAgentProcessReference()
         let sessionCapture = CustomCodingAgentSessionCapture()
+        let timeoutFlag = CustomCodingAgentTimeoutFlag()
 
         let result = try await withTaskCancellationHandler {
             let task = Task.detached(priority: .utility) {
@@ -134,6 +138,7 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                     try? FileManager.default.removeItem(at: stderrURL)
                 }
                 var promptViaStandardInput = request.agent.promptDelivery == .standardInput
+                var processEnvironmentOverride: [String: String]?
                 if let nativeAdapter = request.agent.nativeAdapter {
                     guard let executableURL = NativeCodingAgentAdapter.executableURL(for: nativeAdapter)
                     else {
@@ -149,11 +154,30 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                     process.executableURL = spec.executableURL
                     process.arguments = spec.arguments
                     promptViaStandardInput = spec.promptViaStandardInput
+                } else if let structuredLaunch = request.agent.structuredLaunch {
+                    guard let executableURL = StructuredAgentLaunchResolver.resolveExecutable(
+                        structuredLaunch.executable
+                    ) else {
+                        throw StructuredAgentLaunchError.executableNotFound(
+                            structuredLaunch.executable
+                        )
+                    }
+                    let resolved = StructuredAgentLaunchResolver.resolvedArguments(
+                        structuredLaunch,
+                        prompt: request.prompt
+                    )
+                    process.executableURL = executableURL
+                    process.arguments = resolved.arguments
+                    promptViaStandardInput = resolved.promptViaStandardInput
+                    processEnvironmentOverride = StructuredAgentLaunchResolver.mergedEnvironment(
+                        structuredLaunch
+                    )
                 } else {
                     process.executableURL = URL(fileURLWithPath: "/bin/zsh")
                     process.arguments = shellArguments(for: request)
                 }
-                process.environment = ProcessInfo.processInfo.environment
+                process.environment = processEnvironmentOverride
+                    ?? ProcessInfo.processInfo.environment
                 process.currentDirectoryURL = request.packageRootURL
                 process.standardOutput = stdout
                 process.standardError = stderr
@@ -167,6 +191,18 @@ nonisolated struct CustomCodingAgentClient: Sendable {
 
                 try process.run()
                 processReference.didLaunch(process)
+
+                var timeoutTask: Task<Void, Never>?
+                if let timeoutSeconds = request.agent.structuredLaunch?.timeoutSeconds,
+                   timeoutSeconds > 0
+                {
+                    timeoutTask = Task.detached(priority: .utility) {
+                        try? await Task.sleep(for: .seconds(timeoutSeconds))
+                        guard !Task.isCancelled else { return }
+                        timeoutFlag.mark()
+                        processReference.terminate()
+                    }
+                }
 
                 let capturesClaudeSession = request.agent.nativeAdapter == .claudeCode
                 let stdoutTask = Task.detached(priority: .utility) {
@@ -216,6 +252,7 @@ nonisolated struct CustomCodingAgentClient: Sendable {
 
                 try await stdinTask.value
                 process.waitUntilExit()
+                timeoutTask?.cancel()
                 try? stdout.close()
                 try? stderr.close()
                 tailCompletion.finish()
@@ -231,6 +268,12 @@ nonisolated struct CustomCodingAgentClient: Sendable {
         }
 
         guard result == 0 else {
+            if timeoutFlag.didTimeout {
+                throw CustomCodingAgentError.timedOut(
+                    seconds: request.agent.structuredLaunch?.timeoutSeconds ?? 0,
+                    transcriptURL: transcript.url
+                )
+            }
             throw CustomCodingAgentError.commandFailed(
                 status: result,
                 transcriptURL: transcript.url
@@ -307,6 +350,26 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                 }
             }
         }
+    }
+}
+
+private final class CustomCodingAgentTimeoutFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var flagged = false
+
+    nonisolated init() {}
+
+    nonisolated func mark() {
+        lock.lock()
+        flagged = true
+        lock.unlock()
+    }
+
+    nonisolated var didTimeout: Bool {
+        lock.lock()
+        let value = flagged
+        lock.unlock()
+        return value
     }
 }
 

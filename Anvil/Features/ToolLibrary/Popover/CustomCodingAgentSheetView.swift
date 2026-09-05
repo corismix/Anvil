@@ -231,6 +231,73 @@ private struct CustomCodingAgentEditorFields: View {
     let validate: (CustomCodingAgent) throws -> CustomCodingAgent
     @State private var testStore = CustomCodingAgentTestStore()
 
+    private var structuredLaunchEnabled: Binding<Bool> {
+        Binding(
+            get: { draft.structuredLaunch != nil },
+            set: { enabled in
+                if enabled {
+                    draft.structuredLaunch = StructuredAgentLaunchResolver
+                        .parseLegacyCommand(draft.command) ?? StructuredAgentLaunch()
+                } else {
+                    draft.structuredLaunch = nil
+                }
+            }
+        )
+    }
+
+    private func structuredText(
+        _ keyPath: WritableKeyPath<StructuredAgentLaunch, String>
+    ) -> Binding<String> {
+        Binding(
+            get: { draft.structuredLaunch?[keyPath: keyPath] ?? "" },
+            set: { draft.structuredLaunch?[keyPath: keyPath] = $0 }
+        )
+    }
+
+    private func structuredLines(
+        _ keyPath: WritableKeyPath<StructuredAgentLaunch, [String]>
+    ) -> Binding<String> {
+        Binding(
+            get: { draft.structuredLaunch?[keyPath: keyPath].joined(separator: "\n") ?? "" },
+            set: { newValue in
+                draft.structuredLaunch?[keyPath: keyPath] = newValue
+                    .split(separator: "\n", omittingEmptySubsequences: true)
+                    .map(String.init)
+            }
+        )
+    }
+
+    private var structuredEnvironment: Binding<String> {
+        Binding(
+            get: {
+                (draft.structuredLaunch?.environment ?? [:])
+                    .sorted { $0.key < $1.key }
+                    .map { "\($0.key)=\($0.value)" }
+                    .joined(separator: "\n")
+            },
+            set: { newValue in
+                var environment: [String: String] = [:]
+                for line in newValue.split(separator: "\n", omittingEmptySubsequences: true) {
+                    guard let separator = line.firstIndex(of: "=") else { continue }
+                    let key = String(line[line.startIndex..<separator])
+                    let value = String(line[line.index(after: separator)...])
+                    guard !key.isEmpty else { continue }
+                    environment[key] = value
+                }
+                draft.structuredLaunch?.environment = environment
+            }
+        )
+    }
+
+    private var structuredTimeout: Binding<String> {
+        Binding(
+            get: { String(draft.structuredLaunch?.timeoutSeconds ?? 0) },
+            set: { newValue in
+                draft.structuredLaunch?.timeoutSeconds = Int(newValue) ?? 0
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             field("Name") {
@@ -253,22 +320,76 @@ private struct CustomCodingAgentEditorFields: View {
                     .font(.system(.body, design: .monospaced))
                 }
             } else {
-                field("Command") {
-                    TextField(
-                        CustomCodingAgentPreset.openCode.agent.command,
-                        text: $draft.command,
-                        axis: .vertical
-                    )
-                    .font(.system(.body, design: .monospaced))
-                    .lineLimit(3...6)
+                Picker("Launch", selection: structuredLaunchEnabled) {
+                    Text("Structured").tag(true)
+                    Text("Shell command (legacy)").tag(false)
                 }
+                .labelsHidden()
 
-                field("Send Prompt") {
-                    Picker("Send Prompt", selection: $draft.promptDelivery) {
-                        Text("Replace {{prompt}}").tag(CustomCodingAgent.PromptDelivery.placeholder)
-                        Text("Standard input").tag(CustomCodingAgent.PromptDelivery.standardInput)
+                if draft.structuredLaunch != nil {
+                    field("Executable") {
+                        TextField(
+                            "/opt/homebrew/bin/agent or name on PATH",
+                            text: structuredText(\.executable)
+                        )
+                        .font(.system(.body, design: .monospaced))
                     }
-                    .labelsHidden()
+
+                    field("Arguments (one per line)") {
+                        TextField(
+                            "--prompt {{prompt}}",
+                            text: structuredLines(\.arguments),
+                            axis: .vertical
+                        )
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(2...5)
+                        Text(
+                            "With no {{prompt}} anywhere, the prompt is sent on standard input."
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    field("Environment (KEY=VALUE, one per line)") {
+                        TextField(
+                            "API_URL=https://example.test",
+                            text: structuredEnvironment,
+                            axis: .vertical
+                        )
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(2...4)
+                    }
+
+                    field("Timeout (seconds, 0 = none)") {
+                        TextField("0", text: structuredTimeout)
+                            .font(.system(.body, design: .monospaced))
+                    }
+                } else {
+                    field("Command") {
+                        TextField(
+                            CustomCodingAgentPreset.openCode.agent.command,
+                            text: $draft.command,
+                            axis: .vertical
+                        )
+                        .font(.system(.body, design: .monospaced))
+                        .lineLimit(3...6)
+                    }
+
+                    field("Send Prompt") {
+                        Picker("Send Prompt", selection: $draft.promptDelivery) {
+                            Text("Replace {{prompt}}").tag(CustomCodingAgent.PromptDelivery.placeholder)
+                            Text("Standard input").tag(CustomCodingAgent.PromptDelivery.standardInput)
+                        }
+                        .labelsHidden()
+                    }
+
+                    if StructuredAgentLaunchResolver.parseLegacyCommand(draft.command) != nil {
+                        Button("Convert to structured launch") {
+                            draft.structuredLaunch = StructuredAgentLaunchResolver
+                                .parseLegacyCommand(draft.command)
+                        }
+                        .font(.caption)
+                    }
                 }
             }
 

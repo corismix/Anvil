@@ -20,6 +20,9 @@ nonisolated struct CustomCodingAgent: Codable, Equatable, Identifiable, Sendable
     /// Adapter-specific mode (OpenCode agent mode, Claude Code permission
     /// mode; nil uses the adapter default).
     var adapterMode: String?
+    /// When set, the agent launches structured (executable + args + env,
+    /// no shell) and `command`/`promptDelivery` are ignored at run time.
+    var structuredLaunch: StructuredAgentLaunch?
 
     init(
         id: UUID = UUID(),
@@ -28,7 +31,8 @@ nonisolated struct CustomCodingAgent: Codable, Equatable, Identifiable, Sendable
         promptDelivery: PromptDelivery = .placeholder,
         nativeAdapter: NativeCodingAgentKind? = nil,
         adapterModel: String? = nil,
-        adapterMode: String? = nil
+        adapterMode: String? = nil,
+        structuredLaunch: StructuredAgentLaunch? = nil
     ) {
         self.id = id
         self.name = name
@@ -37,6 +41,7 @@ nonisolated struct CustomCodingAgent: Codable, Equatable, Identifiable, Sendable
         self.nativeAdapter = nativeAdapter
         self.adapterModel = adapterModel
         self.adapterMode = adapterMode
+        self.structuredLaunch = structuredLaunch
     }
 }
 
@@ -154,7 +159,9 @@ final class CustomCodingAgentStore {
         }) else {
             throw CustomCodingAgentValidationError.duplicateName
         }
-        if validated.nativeAdapter == nil {
+        if let structuredLaunch = validated.structuredLaunch {
+            try StructuredAgentLaunchResolver.validate(structuredLaunch)
+        } else if validated.nativeAdapter == nil {
             guard !validated.command.isEmpty else {
                 throw CustomCodingAgentValidationError.missingCommand
             }
