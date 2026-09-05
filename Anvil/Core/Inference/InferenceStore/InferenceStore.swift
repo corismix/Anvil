@@ -77,8 +77,9 @@ final class InferenceStore {
             appleFoundationModelPreferenceStore ?? AppleFoundationModelPreferenceStore()
         self.dependencies = dependencies ?? .live
         self.generationPreferences = generationPreferences ?? GenerationPreferencesStore()
-        self.customCodingAgents = customCodingAgents ?? CustomCodingAgentStore()
-        self.customCodingAgents.ensureNativeAdapterAgents()
+        let resolvedCustomCodingAgents = customCodingAgents ?? CustomCodingAgentStore()
+        resolvedCustomCodingAgents.ensureNativeAdapterAgents()
+        self.customCodingAgents = resolvedCustomCodingAgents
         self.modelSelection = modelSelection ?? ModelSelectionStore()
         self.appleFoundationModelPreferenceStore = appleFoundationModelPreferenceStore
         self.isAppleFoundationModelEnabled = appleFoundationModelPreferenceStore.isEnabled
