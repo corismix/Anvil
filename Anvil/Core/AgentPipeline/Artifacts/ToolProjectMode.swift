@@ -46,7 +46,7 @@ nonisolated struct ToolProjectModeStore: Sendable {
 /// A third-party Swift package dependency the agent requested for an app.
 /// Requests are never applied directly: the user allows or rejects each
 /// one, and the decision is remembered per app in the package metadata.
-struct ToolPackageDependencyRequest: Codable, Equatable, Sendable {
+struct ToolPackageDependencyRequest: Codable, Hashable, Sendable {
     var package: String
     var from: String
     var product: String
