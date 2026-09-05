@@ -67,6 +67,9 @@ final class ToolLibraryStore {
     var rebuildingToolID: UUID?
     var restoringToolID: UUID?
     private(set) var activeCodingAgentByToolID: [UUID: ToolCodingAgent] = [:]
+    /// Post-build permission advisories from the last successful build, keyed by tool.
+    /// In-memory only: advisory, never persisted.
+    private(set) var permissionAdvisories: [UUID: [ToolPermissionAdvisory]] = [:]
     private(set) var selectedToolID: UUID?
     private(set) var selectedToolName: String?
     private var restorableToolIDs = Set<UUID>()
@@ -270,6 +273,10 @@ final class ToolLibraryStore {
 
     func projectMode(for tool: Tool) -> ToolProjectMode {
         dependencies.projectModeStore.mode(tool.packageRootURL)
+    }
+
+    func permissionAdvisorySummary(for tool: Tool) -> String? {
+        ToolPermissionAdvisor.summary(permissionAdvisories[tool.id] ?? [])
     }
 
     /// One-way, explicit promotion from Tiny App to Project mode.
@@ -1252,6 +1259,27 @@ final class ToolLibraryStore {
         tool.applyGenerationSettings(result.settings)
         tool.packageRootPath = result.packageRootURL.path
         clearPendingGeneration(on: tool)
+        updatePermissionAdvisory(for: tool, settings: result.settings)
+    }
+
+    /// Advisory permission scan: compares the built source against the granted
+    /// permissions and surfaces gaps. Never blocks generation.
+    private func updatePermissionAdvisory(for tool: Tool, settings: ToolGenerationSettings) {
+        let advisories = ToolPermissionAdvisor.advisories(
+            layout: tool.packageLayout,
+            sandboxEnabled: settings.sandboxEnabled,
+            sandboxPermissions: settings.sandboxPermissions,
+            resourcePermissions: settings.resourcePermissions
+        )
+        permissionAdvisories[tool.id] = advisories.isEmpty ? nil : advisories
+        guard !advisories.isEmpty else { return }
+        AgentDiagnosticsLog.append(
+            """
+            Permission scan found ungranted permissions the source may need.
+            tool: \(tool.name)
+            advisories: \(advisories.map { "\($0.permissionName) (\($0.matchedMarkers.joined(separator: ", ")))" }.joined(separator: "; "))
+            """
+        )
     }
 
     private func clearPendingGeneration(on tool: Tool) {

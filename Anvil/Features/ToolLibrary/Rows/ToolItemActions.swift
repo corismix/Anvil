@@ -12,6 +12,7 @@ struct ToolItemPresentationState {
     let canRevert: Bool
     var isProjectMode: Bool = false
     let activeCodingAgent: ToolCodingAgent?
+    var permissionAdvisory: String? = nil
     let canShowAgentOutput: Bool
 
     var isBusy: Bool {

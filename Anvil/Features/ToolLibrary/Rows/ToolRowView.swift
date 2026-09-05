@@ -30,6 +30,11 @@ struct ToolRowView: View {
                                 .font(.caption)
                                 .foregroundStyle(statusStyle)
                                 .lineLimit(1)
+                        } else if let permissionAdvisory = state.permissionAdvisory {
+                            Text(permissionAdvisory)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(1)
                         }
                     }
 

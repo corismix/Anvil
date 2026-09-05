@@ -391,7 +391,8 @@ struct ToolLibraryPopoverView: View {
             canRevert: toolLibraryStore.canRestorePreviousVersion(tool),
             isProjectMode: toolLibraryStore.projectMode(for: tool) == .project,
             activeCodingAgent: toolLibraryStore.activeCodingAgent(for: tool),
-            canShowAgentOutput: toolLibraryStore.canShowAgentOutput(for: tool)
+            canShowAgentOutput: toolLibraryStore.canShowAgentOutput(for: tool),
+            permissionAdvisory: toolLibraryStore.permissionAdvisorySummary(for: tool)
         )
     }
 
