@@ -136,7 +136,8 @@ struct AgentPipelineProjectModeTests {
         projectRequest.projectMode = true
         let project = CodexAgentClient.prompt(
             for: projectRequest,
-            temporaryWorkspaceURL: workspace
+            temporaryWorkspaceURL: workspace,
+            projectMode: true
         )
         #expect(project.contains("package-request.json"))
         #expect(project.contains("do NOT edit Package.swift"))
