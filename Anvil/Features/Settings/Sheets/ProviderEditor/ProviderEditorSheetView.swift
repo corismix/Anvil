@@ -30,6 +30,14 @@ struct ProviderEditorSheetView: View {
         isCustomOpenAICompatible || isOllama
     }
 
+    private var isOpenCodeZenEndpoint: Bool {
+        let trimmed = baseURLString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed) else {
+            return false
+        }
+        return OpenCodeZenCatalog.isZenEndpoint(url)
+    }
+
     init(
         provider: ProviderConfig,
         onNestedSheetPresentationChange: @escaping (Bool) -> Void = { _ in }
@@ -70,6 +78,13 @@ struct ProviderEditorSheetView: View {
                                     }
                                 }
                                 .pickerStyle(.segmented)
+                                if isOpenCodeZenEndpoint {
+                                    Text(
+                                        "OpenCode Zen detected. Each model's API protocol is chosen automatically; this setting only applies to models Anvil doesn't recognize."
+                                    )
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                }
                             }
                         } header: {
                             Text("Connection")

@@ -79,6 +79,18 @@ private struct ModelPickerRowView: View {
     let provider: ProviderConfig
     let isSelected: Bool
 
+    private var zenAPIFormat: OpenCodeZenAPIFormat? {
+        guard provider.kind == .customOpenAICompatible,
+              let baseURL = URL(string: provider.baseURLString)
+        else {
+            return nil
+        }
+        return OpenCodeZenCatalog.apiFormat(
+            forModelIdentifier: model.identifier,
+            baseURL: baseURL
+        )
+    }
+
     var body: some View {
         HStack(spacing: 10) {
             ModelLogoView(model: model, provider: provider, size: 28)
@@ -95,9 +107,20 @@ private struct ModelPickerRowView: View {
 
             Spacer()
 
-            Text(model.sourceLabel(provider: provider))
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            if let zenAPIFormat {
+                Text(zenAPIFormat.badgeLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background {
+                        Capsule().fill(.secondary.opacity(0.12))
+                    }
+            } else {
+                Text(model.sourceLabel(provider: provider))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
 
             if isSelected {
                 Image(systemName: "checkmark")

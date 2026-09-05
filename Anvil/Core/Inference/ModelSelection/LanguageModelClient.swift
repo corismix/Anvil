@@ -85,6 +85,37 @@ extension LanguageModelClient {
             case .customOpenAICompatible:
                 let token = try optionalAPIKey(for: provider, credentialClient: credentialClient)
                 let baseURL = try providerBaseURL(provider)
+                if let zenFormat = OpenCodeZenCatalog.apiFormat(
+                    forModelIdentifier: model.identifier,
+                    baseURL: baseURL
+                ) {
+                    switch zenFormat {
+                    case .chatCompletions:
+                        return OpenAILanguageModel(
+                            baseURL: baseURL,
+                            apiKey: token,
+                            model: model.identifier,
+                            apiVariant: .chatCompletions,
+                            session: remoteGenerationSession(for: baseURL)
+                        )
+                    case .responses:
+                        return OpenAILanguageModel(
+                            baseURL: baseURL,
+                            apiKey: token,
+                            model: model.identifier,
+                            apiVariant: .responses,
+                            session: remoteGenerationSession(for: baseURL)
+                        )
+                    case .anthropicMessages:
+                        let anthropicBaseURL = OpenCodeZenCatalog.anthropicBaseURL(for: baseURL)
+                        return AnthropicLanguageModel(
+                            baseURL: anthropicBaseURL,
+                            apiKey: token,
+                            model: model.identifier,
+                            session: remoteGenerationSession(for: anthropicBaseURL)
+                        )
+                    }
+                }
                 return OpenAILanguageModel(
                     baseURL: baseURL,
                     apiKey: token,
