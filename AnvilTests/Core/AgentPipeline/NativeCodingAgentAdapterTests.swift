@@ -99,6 +99,49 @@ struct NativeCodingAgentAdapterTests {
     }
 
     @Test
+    func openCodeLaunchSpecAutoApprovesPermissionsAndPassesAgentMode() {
+        let agent = CustomCodingAgent(
+            name: "OpenCode",
+            command: "",
+            promptDelivery: .placeholder,
+            nativeAdapter: .openCode,
+            adapterModel: "anthropic/claude-sonnet-4",
+            adapterMode: "build"
+        )
+        let spec = NativeCodingAgentAdapter.launchSpec(
+            for: agent,
+            kind: .openCode,
+            executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/opencode"),
+            prompt: "Build a timer"
+        )
+        // Without --auto, non-interactive runs auto-reject every permission
+        // prompt and the agent cannot edit files or run builds.
+        #expect(spec.arguments.contains("--auto"))
+        #expect(spec.arguments.contains("--agent"))
+        #expect(spec.arguments.contains("build"))
+        #expect(spec.arguments.last == "Build a timer")
+    }
+
+    @Test
+    func openCodeLaunchSpecOmitsAgentModeWhenUnset() {
+        let agent = CustomCodingAgent(
+            name: "OpenCode",
+            command: "",
+            promptDelivery: .placeholder,
+            nativeAdapter: .openCode
+        )
+        let spec = NativeCodingAgentAdapter.launchSpec(
+            for: agent,
+            kind: .openCode,
+            executableURL: URL(fileURLWithPath: "/opt/homebrew/bin/opencode"),
+            prompt: "Build a timer"
+        )
+        #expect(spec.arguments.contains("--auto"))
+        #expect(!spec.arguments.contains("--agent"))
+        #expect(!spec.arguments.contains("-m"))
+    }
+
+    @Test
     func claudeSessionIDParsesStreamJSON() {
         let line = #"{"type":"system","subtype":"init","session_id":"abc-123"}"#
         #expect(NativeCodingAgentAdapter.claudeSessionID(fromStreamJSONLine: line) == "abc-123")

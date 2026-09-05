@@ -93,9 +93,17 @@ nonisolated enum NativeCodingAgentAdapter {
                 promptViaStandardInput: true
             )
         case .openCode:
-            var arguments = ["run"]
+            // Non-interactive runs auto-reject every permission prompt unless
+            // --auto is passed, which would leave the agent unable to edit
+            // files or run builds. Anvil's workspace is the guardrail instead
+            // (protected files, dependency approval), same as Claude Code's
+            // --permission-mode auto.
+            var arguments = ["run", "--auto"]
             if let model = agent.adapterModel, !model.isEmpty {
                 arguments.append(contentsOf: ["-m", model])
+            }
+            if let mode = agent.adapterMode, !mode.isEmpty {
+                arguments.append(contentsOf: ["--agent", mode])
             }
             arguments.append(prompt)
             return NativeCodingAgentLaunchSpec(
