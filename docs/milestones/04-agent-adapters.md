@@ -21,22 +21,26 @@ permissions, session continuation, agent-specific options.
 
 ### Adapter model
 
-`ToolCodingAgent` gains two cases, `openCode` and `claudeCode`. Existing
-raw values (`small_model`, `large_model`, `codex`, `custom`) stay
-byte-identical; the new cases are additive and decode-safe.
+Native adapters ride the existing custom-agent path instead of a
+`ToolCodingAgent` enum change: `CustomCodingAgent` gains an optional
+`nativeAdapter` kind (plus `adapterModel` / `adapterMode` options), and
+`CustomCodingAgentClient` launches adapter-backed entries directly -
+resolved executable URL plus argument array, never `/bin/zsh -ilc`.
+This keeps per-app agent association, transcripts, cancellation, and
+protected-file validation identical across all workspace agents, and
+`ToolCodingAgent` raw values stay byte-identical.
 
-Each native adapter gets a dedicated client modeled on
-`CodexAgentClient`:
-
-- `OpenCodeAgentClient` - runs the user's `opencode` binary directly
-  (executable URL + argument array, never a shell string).
-- `ClaudeCodeAgentClient` - same treatment for the user's `claude`
-  binary, with `--output-format stream-json` transcripts.
-
-Shared adapter surface (not a protocol refactor of the runtime): each
-client exposes run-with-request, transcript URL, and a capabilities
-value (image input, session resume, permission modes) that the runtime
-and UI read through the existing pipeline configuration.
+- `NativeCodingAgentKind`: `openCode`, `claudeCode` (display name,
+  executable name, default model, resume capability).
+- `NativeCodingAgentAdapter`: executable lookup (PATH + common install
+  locations), launch-spec builder, Claude stream-json session-id
+  parsing.
+- Claude Code launches as `claude -p --permission-mode <mode>
+  --output-format stream-json --verbose --model <model>` with the
+  prompt on stdin; OpenCode as `opencode run [-m model] <prompt>`.
+- Adapter-backed entries are seeded into the agent list automatically
+  when the CLI is detected (`ensureNativeAdapterAgents`), and their
+  editor sheet shows model/mode fields instead of a command string.
 
 ### Detection
 
@@ -51,26 +55,21 @@ and UI read through the existing pipeline configuration.
 
 ### Options and UI
 
-- The Coding Agent menu in the composer gains OpenCode and Claude Code
-  as first-class entries (next to Codex), separate from the Custom
-  submenu.
-- Selecting one reveals its options in the generation settings menu:
-  model, and per-adapter mode (OpenCode: agent mode; Claude Code:
-  permission mode).
-- Options persist per app in the committed `.anvil/build-settings.json`
-  via new optional fields on `ToolGenerationSettings` (additive,
-  decode-safe), so they travel with git history like everything else.
+- Detected adapters appear as named entries (OpenCode, Claude Code) in
+  the Coding Agent > Custom list; selecting one works exactly like a
+  custom agent pick, so the existing picker UI covers it.
+- Per-adapter options (model, mode) live on the agent entry itself,
+  edited in the manage-agents sheet; they persist in the custom-agents
+  preferences record (additive optional fields, decode-safe).
 
 ### Session continuation
 
 - Follow-up edits resume the prior agent session for the app when the
-  backend supports it: Claude Code via `--resume <session-id>`, OpenCode
-  via its session flag.
+  backend supports it: Claude Code via `--resume <session-id>` (OpenCode
+  output carries no reliably parseable session id, so it cold-starts).
 - The session id is captured from the run's stream-json output and
-  stored in `.anvil/agent-session.json` (sidecar, committed), cleared
-  when the app is rebuilt from scratch.
-- Cold start remains the fallback when no session id is recorded or the
-  backend rejects the resume.
+  stored in `.anvil/agent-session.json` (sidecar, committed).
+- Cold start remains the fallback when no session id is recorded.
 
 ### What stays the same
 

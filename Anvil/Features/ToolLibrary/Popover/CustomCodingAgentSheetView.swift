@@ -218,6 +218,13 @@ struct ManageCustomCodingAgentsSheetView: View {
     }
 }
 
+private func optionalText(_ binding: Binding<String?>) -> Binding<String> {
+    Binding(
+        get: { binding.wrappedValue ?? "" },
+        set: { binding.wrappedValue = $0.isEmpty ? nil : $0 }
+    )
+}
+
 private struct CustomCodingAgentEditorFields: View {
     @Binding var draft: CustomCodingAgent
     let errorMessage: String?
@@ -230,22 +237,39 @@ private struct CustomCodingAgentEditorFields: View {
                 TextField("Agent name", text: $draft.name)
             }
 
-            field("Command") {
-                TextField(
-                    CustomCodingAgentPreset.openCode.agent.command,
-                    text: $draft.command,
-                    axis: .vertical
-                )
-                .font(.system(.body, design: .monospaced))
-                .lineLimit(3...6)
-            }
-
-            field("Send Prompt") {
-                Picker("Send Prompt", selection: $draft.promptDelivery) {
-                    Text("Replace {{prompt}}").tag(CustomCodingAgent.PromptDelivery.placeholder)
-                    Text("Standard input").tag(CustomCodingAgent.PromptDelivery.standardInput)
+            if let adapter = draft.nativeAdapter {
+                field("Model") {
+                    TextField(
+                        adapter.defaultModel.isEmpty ? "CLI default" : adapter.defaultModel,
+                        text: optionalText($draft.adapterModel)
+                    )
+                    .font(.system(.body, design: .monospaced))
                 }
-                .labelsHidden()
+                field("Mode") {
+                    TextField(
+                        "Adapter default",
+                        text: optionalText($draft.adapterMode)
+                    )
+                    .font(.system(.body, design: .monospaced))
+                }
+            } else {
+                field("Command") {
+                    TextField(
+                        CustomCodingAgentPreset.openCode.agent.command,
+                        text: $draft.command,
+                        axis: .vertical
+                    )
+                    .font(.system(.body, design: .monospaced))
+                    .lineLimit(3...6)
+                }
+
+                field("Send Prompt") {
+                    Picker("Send Prompt", selection: $draft.promptDelivery) {
+                        Text("Replace {{prompt}}").tag(CustomCodingAgent.PromptDelivery.placeholder)
+                        Text("Standard input").tag(CustomCodingAgent.PromptDelivery.standardInput)
+                    }
+                    .labelsHidden()
+                }
             }
 
             field("Test Agent") {

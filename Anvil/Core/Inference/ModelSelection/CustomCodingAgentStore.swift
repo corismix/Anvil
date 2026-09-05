@@ -11,17 +11,32 @@ nonisolated struct CustomCodingAgent: Codable, Equatable, Identifiable, Sendable
     var name: String
     var command: String
     var promptDelivery: PromptDelivery
+    /// Set when this entry is backed by a native adapter (OpenCode,
+    /// Claude Code): the CLI is launched directly with structured
+    /// arguments and `command` is unused.
+    var nativeAdapter: NativeCodingAgentKind?
+    /// Adapter-specific model override (nil uses the adapter default).
+    var adapterModel: String?
+    /// Adapter-specific mode (OpenCode agent mode, Claude Code permission
+    /// mode; nil uses the adapter default).
+    var adapterMode: String?
 
     init(
         id: UUID = UUID(),
         name: String,
         command: String,
-        promptDelivery: PromptDelivery = .placeholder
+        promptDelivery: PromptDelivery = .placeholder,
+        nativeAdapter: NativeCodingAgentKind? = nil,
+        adapterModel: String? = nil,
+        adapterMode: String? = nil
     ) {
         self.id = id
         self.name = name
         self.command = command
         self.promptDelivery = promptDelivery
+        self.nativeAdapter = nativeAdapter
+        self.adapterModel = adapterModel
+        self.adapterMode = adapterMode
     }
 }
 
@@ -139,22 +154,51 @@ final class CustomCodingAgentStore {
         }) else {
             throw CustomCodingAgentValidationError.duplicateName
         }
-        guard !validated.command.isEmpty else {
-            throw CustomCodingAgentValidationError.missingCommand
-        }
-
-        let placeholderCount = validated.command.components(separatedBy: "{{prompt}}").count - 1
-        switch validated.promptDelivery {
-        case .placeholder:
-            guard placeholderCount == 1 else {
-                throw CustomCodingAgentValidationError.invalidPlaceholderCount
+        if validated.nativeAdapter == nil {
+            guard !validated.command.isEmpty else {
+                throw CustomCodingAgentValidationError.missingCommand
             }
-        case .standardInput:
-            guard placeholderCount == 0 else {
-                throw CustomCodingAgentValidationError.placeholderNotAllowedWithStandardInput
+
+            let placeholderCount = validated.command.components(separatedBy: "{{prompt}}").count - 1
+            switch validated.promptDelivery {
+            case .placeholder:
+                guard placeholderCount == 1 else {
+                    throw CustomCodingAgentValidationError.invalidPlaceholderCount
+                }
+            case .standardInput:
+                guard placeholderCount == 0 else {
+                    throw CustomCodingAgentValidationError.placeholderNotAllowedWithStandardInput
+                }
             }
         }
         return validated
+    }
+
+    /// Inserts native adapter entries (OpenCode, Claude Code) for CLIs
+    /// found on this machine. Idempotent per adapter kind.
+    func ensureNativeAdapterAgents(
+        executableAvailable: (NativeCodingAgentKind) -> Bool = {
+            NativeCodingAgentAdapter.executableURL(for: $0) != nil
+        }
+    ) {
+        var changed = false
+        for kind in NativeCodingAgentKind.allCases {
+            guard !agents.contains(where: { $0.nativeAdapter == kind }),
+                  executableAvailable(kind)
+            else { continue }
+            agents.append(
+                CustomCodingAgent(
+                    name: kind.displayName,
+                    command: "",
+                    promptDelivery: .standardInput,
+                    nativeAdapter: kind
+                )
+            )
+            changed = true
+        }
+        if changed {
+            persistAgents()
+        }
     }
 
     @discardableResult

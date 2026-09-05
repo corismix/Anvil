@@ -972,20 +972,25 @@ struct SingleFileToolGenerationRuntime {
             "Custom coding agent started. runner: \(agent.name), packageRoot: \(layout.packageRootURL.path)"
         )
         do {
-            let result = try await context.customCodingAgentClient.run(
-                CustomCodingAgentRequest(
-                    agent: agent,
-                    packageRootURL: layout.packageRootURL,
-                    prompt: prompt
-                ) { output in
-                    guard output.stream == .stderr, !output.text.isEmpty else { return }
-                    try? await lifecycle.updatePhase(
-                        .generating,
-                        .generatingSource,
-                        output.text
-                    )
-                }
-            )
+            var agentRequest = CustomCodingAgentRequest(
+                agent: agent,
+                packageRootURL: layout.packageRootURL,
+                prompt: prompt
+            ) { output in
+                guard output.stream == .stderr, !output.text.isEmpty else { return }
+                try? await lifecycle.updatePhase(
+                    .generating,
+                    .generatingSource,
+                    output.text
+                )
+            }
+            if agent.nativeAdapter?.supportsSessionResume == true {
+                agentRequest.resumeSessionID = AgentSessionStore.live.sessionID(
+                    layout.packageRootURL,
+                    agent.name
+                )
+            }
+            let result = try await context.customCodingAgentClient.run(agentRequest)
             try Task.checkCancellation()
             try validateCodingAgentProtectedFiles(
                 layout: layout,

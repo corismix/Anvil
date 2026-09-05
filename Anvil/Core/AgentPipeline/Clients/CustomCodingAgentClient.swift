@@ -5,6 +5,9 @@ nonisolated struct CustomCodingAgentRequest: Sendable {
     let agent: CustomCodingAgent
     let packageRootURL: URL
     let prompt: String
+    /// Native adapters that support session resume get the prior session
+    /// id here; nil cold-starts.
+    var resumeSessionID: String? = nil
     let onOutput: @Sendable (CustomCodingAgentOutput) async -> Void
 
     init(
@@ -89,11 +92,14 @@ nonisolated struct CustomCodingAgentTestClient: Sendable {
 
 enum CustomCodingAgentError: LocalizedError {
     case commandFailed(status: Int32, transcriptURL: URL)
+    case nativeAdapterUnavailable(String)
 
     var errorDescription: String? {
         switch self {
         case .commandFailed(let status, let transcriptURL):
             "The custom coding agent exited with status \(status). Transcript: \(transcriptURL.path)"
+        case .nativeAdapterUnavailable(let name):
+            "\(name) is not installed or not on PATH. Install it or pick another coding agent."
         }
     }
 }
@@ -108,6 +114,7 @@ nonisolated struct CustomCodingAgentClient: Sendable {
         )
         let writer = try CustomCodingAgentTranscriptWriter(url: transcript.url)
         let processReference = CustomCodingAgentProcessReference()
+        let sessionCapture = CustomCodingAgentSessionCapture()
 
         let result = try await withTaskCancellationHandler {
             let task = Task.detached(priority: .utility) {
@@ -126,14 +133,31 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                     try? FileManager.default.removeItem(at: stdoutURL)
                     try? FileManager.default.removeItem(at: stderrURL)
                 }
-                let stdin = request.agent.promptDelivery == .standardInput ? Pipe() : nil
-
-                process.executableURL = URL(fileURLWithPath: "/bin/zsh")
-                process.arguments = shellArguments(for: request)
+                var promptViaStandardInput = request.agent.promptDelivery == .standardInput
+                if let nativeAdapter = request.agent.nativeAdapter {
+                    guard let executableURL = NativeCodingAgentAdapter.executableURL(for: nativeAdapter)
+                    else {
+                        throw CustomCodingAgentError.nativeAdapterUnavailable(nativeAdapter.displayName)
+                    }
+                    let spec = NativeCodingAgentAdapter.launchSpec(
+                        for: request.agent,
+                        kind: nativeAdapter,
+                        executableURL: executableURL,
+                        prompt: request.prompt,
+                        resumeSessionID: request.resumeSessionID
+                    )
+                    process.executableURL = spec.executableURL
+                    process.arguments = spec.arguments
+                    promptViaStandardInput = spec.promptViaStandardInput
+                } else {
+                    process.executableURL = URL(fileURLWithPath: "/bin/zsh")
+                    process.arguments = shellArguments(for: request)
+                }
                 process.environment = ProcessInfo.processInfo.environment
                 process.currentDirectoryURL = request.packageRootURL
                 process.standardOutput = stdout
                 process.standardError = stderr
+                let stdin = promptViaStandardInput ? Pipe() : nil
                 process.standardInput = stdin
 
                 guard !processReference.set(process) else {
@@ -144,11 +168,19 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                 try process.run()
                 processReference.didLaunch(process)
 
+                let capturesClaudeSession = request.agent.nativeAdapter == .claudeCode
                 let stdoutTask = Task.detached(priority: .utility) {
                     try await tailLines(
                         from: stdoutURL,
                         completion: tailCompletion
                     ) { line in
+                        if capturesClaudeSession,
+                           let sessionID = NativeCodingAgentAdapter.claudeSessionID(
+                               fromStreamJSONLine: line
+                           )
+                        {
+                            sessionCapture.record(sessionID)
+                        }
                         let output = CustomCodingAgentOutput(
                             timestamp: .now,
                             runner: request.agent.name,
@@ -202,6 +234,13 @@ nonisolated struct CustomCodingAgentClient: Sendable {
             throw CustomCodingAgentError.commandFailed(
                 status: result,
                 transcriptURL: transcript.url
+            )
+        }
+        if let sessionID = sessionCapture.sessionID {
+            try? AgentSessionStore.live.setSessionID(
+                request.packageRootURL,
+                request.agent.name,
+                sessionID
             )
         }
         return CustomCodingAgentResult(
@@ -268,6 +307,26 @@ nonisolated struct CustomCodingAgentClient: Sendable {
                 }
             }
         }
+    }
+}
+
+private final class CustomCodingAgentSessionCapture: @unchecked Sendable {
+    private let lock = NSLock()
+    nonisolated(unsafe) private var captured: String?
+
+    nonisolated init() {}
+
+    nonisolated func record(_ sessionID: String) {
+        lock.lock()
+        captured = sessionID
+        lock.unlock()
+    }
+
+    nonisolated var sessionID: String? {
+        lock.lock()
+        let value = captured
+        lock.unlock()
+        return value
     }
 }
 
