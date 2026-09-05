@@ -91,37 +91,45 @@ extension LanguageModelClient {
                 ) {
                     switch zenFormat {
                     case .chatCompletions:
-                        return OpenAILanguageModel(
-                            baseURL: baseURL,
-                            apiKey: token,
-                            model: model.identifier,
-                            apiVariant: .chatCompletions,
-                            session: remoteGenerationSession(for: baseURL)
+                        return StructuredOutputFallbackLanguageModel(
+                            base: OpenAILanguageModel(
+                                baseURL: baseURL,
+                                apiKey: token,
+                                model: model.identifier,
+                                apiVariant: .chatCompletions,
+                                session: remoteGenerationSession(for: baseURL)
+                            )
                         )
                     case .responses:
-                        return OpenAILanguageModel(
-                            baseURL: baseURL,
-                            apiKey: token,
-                            model: model.identifier,
-                            apiVariant: .responses,
-                            session: remoteGenerationSession(for: baseURL)
+                        return StructuredOutputFallbackLanguageModel(
+                            base: OpenAILanguageModel(
+                                baseURL: baseURL,
+                                apiKey: token,
+                                model: model.identifier,
+                                apiVariant: .responses,
+                                session: remoteGenerationSession(for: baseURL)
+                            )
                         )
                     case .anthropicMessages:
                         let anthropicBaseURL = OpenCodeZenCatalog.anthropicBaseURL(for: baseURL)
-                        return AnthropicLanguageModel(
-                            baseURL: anthropicBaseURL,
-                            apiKey: token,
-                            model: model.identifier,
-                            session: remoteGenerationSession(for: anthropicBaseURL)
+                        return StructuredOutputFallbackLanguageModel(
+                            base: AnthropicLanguageModel(
+                                baseURL: anthropicBaseURL,
+                                apiKey: token,
+                                model: model.identifier,
+                                session: remoteGenerationSession(for: anthropicBaseURL)
+                            )
                         )
                     }
                 }
-                return OpenAILanguageModel(
-                    baseURL: baseURL,
-                    apiKey: token,
-                    model: model.identifier,
-                    apiVariant: provider.openAICompatibleAPIVariant.openAILanguageModelVariant,
-                    session: remoteGenerationSession(for: baseURL)
+                return StructuredOutputFallbackLanguageModel(
+                    base: OpenAILanguageModel(
+                        baseURL: baseURL,
+                        apiKey: token,
+                        model: model.identifier,
+                        apiVariant: provider.openAICompatibleAPIVariant.openAILanguageModelVariant,
+                        session: remoteGenerationSession(for: baseURL)
+                    )
                 )
 
             case .ollama:
