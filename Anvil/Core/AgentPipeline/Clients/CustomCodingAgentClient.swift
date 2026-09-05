@@ -366,7 +366,8 @@ nonisolated enum CustomCodingAgentPrompt {
         executableName: String,
         appKind: ToolAppKind,
         sandboxEnabled: Bool,
-        attachments: [ToolPersistedPromptAttachment]
+        attachments: [ToolPersistedPromptAttachment],
+        projectMode: Bool = false
     ) -> String {
         let attachmentContext = attachments.isEmpty ? "" : """
 
@@ -388,11 +389,7 @@ nonisolated enum CustomCodingAgentPrompt {
             \(ToolGenerationPrompts.appPresentationContext(appKind: appKind))
             \(ToolGenerationPrompts.sandboxContext(sandboxEnabled: sandboxEnabled))
 
-            Rules:
-            - Create or edit only Sources/\(executableName)/ContentView.swift.
-            - Do not modify Package.swift or Sources/\(executableName)/\(executableName).swift.
-            - Do not add other source files or package dependencies.
-            - Do not add previews, @main declarations, or App-conforming helper types.
+            \(projectMode ? projectModeRules(executableName: executableName) : singleFileRules(executableName: executableName))
             - Keep working until ContentView.swift is complete and `swift build --disable-sandbox` succeeds.
             - Define ContentView as the root View. Helper types may live in the same file.
             - This is a macOS SwiftUI app. Do not use iOS-only modifiers.
@@ -400,6 +397,29 @@ nonisolated enum CustomCodingAgentPrompt {
             - Make the app feel native to macOS and prefer Apple frameworks over custom or third-party solutions.
             - Use // MARK: - to separate sections of code.
             """
+    }
+}
+
+extension CustomCodingAgentPrompt {
+    static func singleFileRules(executableName: String) -> String {
+        """
+        Rules:
+        - Create or edit only Sources/\(executableName)/ContentView.swift.
+        - Do not modify Package.swift or Sources/\(executableName)/\(executableName).swift.
+        - Do not add other source files or package dependencies.
+        - Do not add previews, @main declarations, or App-conforming helper types.
+        """
+    }
+
+    static func projectModeRules(executableName: String) -> String {
+        """
+        Rules:
+        - You may create, edit, and delete Swift files anywhere under Sources/\(executableName)/ - factor code into additional files (Views/, Models/, Services/) when it helps.
+        - ContentView.swift stays the root view and must keep existing.
+        - Do not modify Package.swift or Sources/\(executableName)/\(executableName).swift.
+        - To use a third-party Swift package, do NOT edit Package.swift. Write .anvil/package-request.json as [{"package": "<git url>", "from": "<version>", "product": "<product name>"}] and mention the request in your final message. The user reviews each dependency before it is added.
+        - Do not add previews, @main declarations, or App-conforming helper types.
+        """
     }
 }
 

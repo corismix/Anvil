@@ -181,6 +181,23 @@ struct ToolLibraryPopoverView: View {
             ToolVersionHistoryView(tool: tool, store: toolLibraryStore)
                 .environment(\.modelContext, modelContext)
         }
+        .sheet(
+            isPresented: Binding(
+                get: { toolLibraryStore.dependencyApprovalToolID != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        toolLibraryStore.dependencyApprovalToolID = nil
+                    }
+                }
+            )
+        ) {
+            if let id = toolLibraryStore.dependencyApprovalToolID,
+                let tool = tools.first(where: { $0.id == id })
+            {
+                ToolDependencyRequestView(tool: tool, store: toolLibraryStore)
+                    .environment(\.modelContext, modelContext)
+            }
+        }
         .sheet(item: $customCodingAgentSheet) { sheet in
             switch sheet {
             case .add:
@@ -224,6 +241,7 @@ struct ToolLibraryPopoverView: View {
                 isExpanded: $isPromptExpanded,
                 sandboxEnabled: sandboxEnabledBinding,
                 appKindPreference: appKindPreferenceBinding,
+                projectMode: projectModeBinding,
                 sandboxPermissions: sandboxPermissionsBinding,
                 resourcePermissions: resourcePermissionsBinding,
                 codingAgentPreference: codingAgentPreferenceBinding,
@@ -371,6 +389,7 @@ struct ToolLibraryPopoverView: View {
             isEditingDetails: detailsEditor.isWorking && detailsEditor.editingToolID == tool.id,
             isPreparingGeneration: false,
             canRevert: toolLibraryStore.canRestorePreviousVersion(tool),
+            isProjectMode: toolLibraryStore.projectMode(for: tool) == .project,
             activeCodingAgent: toolLibraryStore.activeCodingAgent(for: tool),
             canShowAgentOutput: toolLibraryStore.canShowAgentOutput(for: tool)
         )
@@ -412,6 +431,9 @@ struct ToolLibraryPopoverView: View {
             },
             onShowVersions: {
                 versionHistoryTool = tool
+            },
+            onConvertToProject: {
+                toolLibraryStore.convertToProjectMode(tool)
             },
             onExport: {
                 Task {
@@ -603,6 +625,13 @@ struct ToolLibraryPopoverView: View {
         Binding(
             get: { toolLibraryStore.appKindPreference },
             set: { toolLibraryStore.setAppKindPreference($0) }
+        )
+    }
+
+    private var projectModeBinding: Binding<ToolProjectMode> {
+        Binding(
+            get: { toolLibraryStore.projectModePreference },
+            set: { toolLibraryStore.projectModePreference = $0 }
         )
     }
 

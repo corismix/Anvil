@@ -10,6 +10,7 @@ struct ToolItemPresentationState {
     let isEditingDetails: Bool
     let isPreparingGeneration: Bool
     let canRevert: Bool
+    var isProjectMode: Bool = false
     let activeCodingAgent: ToolCodingAgent?
     let canShowAgentOutput: Bool
 
@@ -28,6 +29,7 @@ struct ToolItemActions {
     let onRebuild: () -> Void
     let onRevert: () -> Void
     let onShowVersions: () -> Void
+    var onConvertToProject: () -> Void = {}
     let onExport: () -> Void
     let onShowInFinder: () -> Void
     let onViewSource: () -> Void
@@ -46,6 +48,7 @@ struct ToolItemActions {
         onRebuild: {},
         onRevert: {},
         onShowVersions: {},
+        onConvertToProject: {},
         onExport: {},
         onShowInFinder: {},
         onViewSource: {},
@@ -98,6 +101,10 @@ struct ToolItemActionsMenu: View {
             .disabled(!tool.isGenerationReady || !state.canRevert || state.isBusy)
         Button("Version History...", action: actions.onShowVersions)
             .disabled(!tool.isGenerationReady || state.isBusy)
+        if !state.isProjectMode {
+            Button("Convert to Project", action: actions.onConvertToProject)
+                .disabled(!tool.isGenerationReady || state.isBusy)
+        }
         Button("Export App", action: actions.onExport)
             .disabled(!tool.isGenerationReady || state.isBusy)
         Button("View Source", action: actions.onViewSource)

@@ -77,6 +77,9 @@ nonisolated struct ToolGenerationRequest {
     let imageGenerationProvider: ToolImageGenerationProvider
     let attachments: [ToolPromptAttachment]
     let lifecycle: ToolGenerationLifecycle
+    /// Requested size mode for a newly created app; existing apps keep the
+    /// mode persisted in their package metadata.
+    var projectMode: ToolProjectMode = .tiny
 
     init(
         prompt: String,
@@ -138,7 +141,8 @@ struct ToolGenerationClient {
                     planningPolicy: request.planningPolicy,
                     imageGenerationProvider: request.imageGenerationProvider,
                     attachments: request.attachments,
-                    lifecycle: request.lifecycle
+                    lifecycle: request.lifecycle,
+                    projectMode: request.projectMode
                 )
             },
             cancelIconGeneration: { packageRootURL in

@@ -55,6 +55,8 @@ final class ToolLibraryStore {
     var sandboxEnabled = true
     var appKind: ToolAppKind = .window
     var appKindPreference: ToolAppKindPreference = .automatic
+    /// Requested size mode for the next new app (workspace-agent backends only).
+    var projectModePreference: ToolProjectMode = .tiny
     var menuBarSystemImage = ToolMenuBarSymbol.fallback
     var sandboxPermissions = GeneratedAppSandboxPermissions.default
     var resourcePermissions = GeneratedAppResourcePermissions.none
@@ -259,6 +261,82 @@ final class ToolLibraryStore {
 
     func canRestorePreviousVersion(_ tool: Tool) -> Bool {
         tool.isGenerationReady && restorableToolIDs.contains(tool.id)
+    }
+
+    /// Tool awaiting the user's decision on agent-requested Package.swift
+    /// dependencies. Set when generation pauses with
+    /// `ToolGenerationError.dependencyApprovalPending`.
+    var dependencyApprovalToolID: UUID?
+
+    func projectMode(for tool: Tool) -> ToolProjectMode {
+        dependencies.projectModeStore.mode(tool.packageRootURL)
+    }
+
+    /// One-way, explicit promotion from Tiny App to Project mode.
+    func convertToProjectMode(_ tool: Tool) {
+        guard tool.isGenerationReady else { return }
+        try? dependencies.projectModeStore.setMode(tool.packageRootURL, .project)
+        try? dependencies.gitClient.recordVersion(tool.packageRootURL, "Convert to project mode")
+    }
+
+    /// Pending dependency requests the user has not decided on yet.
+    func pendingDependencyRequests(for tool: Tool) -> [ToolPackageDependencyRequest] {
+        let requested = dependencies.dependencyStore.pendingRequest(tool.packageRootURL)
+        let allowed = Set(dependencies.dependencyStore.allowed(tool.packageRootURL))
+        return requested.filter { !allowed.contains($0) }
+    }
+
+    func allowDependencyRequests(
+        _ tool: Tool,
+        modelContext: ModelContext,
+        inferenceStore: InferenceStore
+    ) {
+        let pending = dependencies.dependencyStore.pendingRequest(tool.packageRootURL)
+        guard !pending.isEmpty else {
+            dependencyApprovalToolID = nil
+            return
+        }
+        var allowed = dependencies.dependencyStore.allowed(tool.packageRootURL)
+        for request in pending where !allowed.contains(request) {
+            allowed.append(request)
+        }
+        do {
+            try dependencies.dependencyStore.setAllowed(tool.packageRootURL, allowed)
+            try dependencies.dependencyStore.clearPendingRequest(tool.packageRootURL)
+            try dependencies.packageMaterializer.writePackageManifest(
+                tool.packageLayout,
+                dependencies: allowed
+            )
+            try? dependencies.gitClient.recordVersion(
+                tool.packageRootURL,
+                "Add package \(pending.map(\.product).joined(separator: ", "))"
+            )
+        } catch {
+            presentError(error.localizedDescription)
+            return
+        }
+        dependencyApprovalToolID = nil
+        // The generation parked at the packaging phase; continue builds
+        // with the dependency in place.
+        continueGeneration(tool, modelContext: modelContext, inferenceStore: inferenceStore)
+    }
+
+    func rejectDependencyRequests(_ tool: Tool, in modelContext: ModelContext) {
+        let pending = dependencies.dependencyStore.pendingRequest(tool.packageRootURL)
+        if !pending.isEmpty {
+            var rejected = dependencies.dependencyStore.rejected(tool.packageRootURL)
+            for request in pending where !rejected.contains(request) {
+                rejected.append(request)
+            }
+            try? dependencies.dependencyStore.setRejected(tool.packageRootURL, rejected)
+            try? dependencies.dependencyStore.clearPendingRequest(tool.packageRootURL)
+        }
+        dependencyApprovalToolID = nil
+        // Send the agent another turn: it sees the rejection list and
+        // revises the code to drop the dependency.
+        tool.generationPhase = .generatingSource
+        tool.generationErrorSummary = "Dependency request rejected. Continue to let the agent revise the app without it."
+        try? modelContext.save()
     }
 
     func activeCodingAgent(for tool: Tool) -> ToolCodingAgent? {
@@ -594,22 +672,26 @@ final class ToolLibraryStore {
                 activeToolBox.value = tool
             }
 
+            var generationRequest = ToolGenerationRequest(
+                prompt: trimmedPrompt,
+                existingTool: selectedTool,
+                settings: submittedSettings,
+                planningPolicy: generationPlanningPolicy(
+                    preferences: inferenceStore.generationPreferences,
+                    appKindPreference: selectedTool == nil
+                        ? submittedAppKindPreference
+                        : ToolAppKindPreference(submittedSettings.appKind)
+                ),
+                languageModelContext: languageModelContext,
+                imageGenerationProvider: inferenceStore.effectiveImageGenerationProvider,
+                attachments: submittedAttachments,
+                lifecycle: lifecycle
+            )
+            if selectedTool == nil {
+                generationRequest.projectMode = projectModePreference
+            }
             let result = try await dependencies.generationClient.generateTool(
-                ToolGenerationRequest(
-                    prompt: trimmedPrompt,
-                    existingTool: selectedTool,
-                    settings: submittedSettings,
-                    planningPolicy: generationPlanningPolicy(
-                        preferences: inferenceStore.generationPreferences,
-                        appKindPreference: selectedTool == nil
-                            ? submittedAppKindPreference
-                            : ToolAppKindPreference(submittedSettings.appKind)
-                    ),
-                    languageModelContext: languageModelContext,
-                    imageGenerationProvider: inferenceStore.effectiveImageGenerationProvider,
-                    attachments: submittedAttachments,
-                    lifecycle: lifecycle
-                )
+                generationRequest
             )
 
             let completedTool = try requirePreparedTool(selectedTool ?? activeTool)
@@ -636,10 +718,15 @@ final class ToolLibraryStore {
                     if shouldNotifyGenerationTerminalEvent {
                         await notifyGenerationStopped(activeTool, detail: message)
                     }
+                    if (error as? ToolGenerationError) == .dependencyApprovalPending {
+                        dependencyApprovalToolID = activeTool.id
+                    }
                 } else {
                     modelContext.rollback()
                 }
-                presentGenerationError(error)
+                if (error as? ToolGenerationError) != .dependencyApprovalPending {
+                    presentGenerationError(error)
+                }
             } else {
                 if let activeTool {
                     markToolFailed(activeTool, error: error)
@@ -963,7 +1050,11 @@ final class ToolLibraryStore {
                 if shouldNotifyGenerationTerminalEvent {
                     await notifyGenerationStopped(tool, detail: message)
                 }
-                presentGenerationError(error)
+                if (error as? ToolGenerationError) == .dependencyApprovalPending {
+                    dependencyApprovalToolID = tool.id
+                } else {
+                    presentGenerationError(error)
+                }
             } else {
                 markToolFailed(tool, error: error)
                 try? modelContext.save()
@@ -1300,6 +1391,8 @@ struct ToolLibraryDependencies {
     var finderClient: ToolFinderClient = .live
     var versionBackupClient: ToolVersionBackupClient = .live
     var gitClient: ToolGitClient = .live
+    var projectModeStore: ToolProjectModeStore = .live
+    var dependencyStore: ToolPackageDependencyStore = .live
     var buildClient: ToolBuildClient = .live()
     var packageMaterializer: ToolPackageMaterializer = .live
     var attachmentStorage: ToolPromptAttachmentStorage = .live
@@ -1312,6 +1405,8 @@ struct ToolLibraryDependencies {
         finderClient: .live,
         versionBackupClient: .live,
         gitClient: .live,
+        projectModeStore: .live,
+        dependencyStore: .live,
         buildClient: .live(),
         packageMaterializer: .live,
         attachmentStorage: .live,

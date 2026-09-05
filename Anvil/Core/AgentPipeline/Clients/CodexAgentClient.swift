@@ -50,6 +50,7 @@ nonisolated struct CodexAgentRequest: Sendable {
     let reasoningEffort: ToolReasoningEffort
     let authentication: CodexAgentAuthentication
     let supportsImageInput: Bool
+    var projectMode: Bool = false
     let onEvent: @Sendable (CodexAgentEvent) async -> Void
 
     var toolCompatibility: CodexAgentToolCompatibility {
@@ -650,7 +651,8 @@ extension CodexAgentClient {
                     for: request,
                     temporaryWorkspaceURL: swiftBuildWorkspace.rootURL,
                     toolCompatibility: request.toolCompatibility,
-                    attachments: exposedAttachments
+                    attachments: exposedAttachments,
+                    projectMode: request.projectMode
                 )
             )
 
@@ -697,7 +699,8 @@ extension CodexAgentClient {
         for request: CodexAgentRequest,
         temporaryWorkspaceURL: URL,
         toolCompatibility: CodexAgentToolCompatibility? = nil,
-        attachments: [ToolPersistedPromptAttachment] = []
+        attachments: [ToolPersistedPromptAttachment] = [],
+        projectMode: Bool = false
     ) -> String {
         let resolvedToolCompatibility = toolCompatibility ?? request.toolCompatibility
         let finalRules = [
@@ -733,13 +736,7 @@ extension CodexAgentClient {
             \(ToolGenerationPrompts.appPresentationContext(appKind: request.appKind))
             \(ToolGenerationPrompts.sandboxContext(sandboxEnabled: request.sandboxEnabled))
 
-            Rules:
-            - Create or edit only Sources/\(request.executableName)/ContentView.swift.
-            - Do not modify Package.swift.
-            - Do not modify Sources/\(request.executableName)/\(request.executableName).swift.
-            - Do not add other source files.
-            - Do not add package dependencies.
-            - Do not add previews or @main declarations.
+            \(projectMode ? Self.projectModeRules(executableName: request.executableName) : Self.singleFileRules(executableName: request.executableName))
             - Run `swift build --disable-sandbox` when you need to check compilation.
             - Use \(temporaryWorkspaceURL.path) for any temporary scratch files you deliberately create.
             - Do not write deliberate scratch files directly in the top-level system temp directory.
@@ -754,6 +751,29 @@ extension CodexAgentClient {
             - Apple frameworks and APIs are allowed and encouraged over custom solutions, but do not add any third-party dependencies.
             \(finalRules)
             """
+    }
+
+    nonisolated private static func singleFileRules(executableName: String) -> String {
+        """
+        Rules:
+        - Create or edit only Sources/\(executableName)/ContentView.swift.
+        - Do not modify Package.swift.
+        - Do not modify Sources/\(executableName)/\(executableName).swift.
+        - Do not add other source files.
+        - Do not add package dependencies.
+        - Do not add previews or @main declarations.
+        """
+    }
+
+    nonisolated private static func projectModeRules(executableName: String) -> String {
+        """
+        Rules:
+        - You may create, edit, and delete Swift files anywhere under Sources/\(executableName)/ - factor code into additional files (Views/, Models/, Services/) when it helps.
+        - ContentView.swift stays the root view and must keep existing.
+        - Do not modify Package.swift or Sources/\(executableName)/\(executableName).swift.
+        - To use a third-party Swift package, do NOT edit Package.swift. Write .anvil/package-request.json as [{"package": "<git url>", "from": "<version>", "product": "<product name>"}] and mention the request in your final message. The user reviews each dependency before it is added.
+        - Do not add previews or @main declarations.
+        """
     }
 
     nonisolated private static func modelArgument(from identifier: String) -> String? {

@@ -57,6 +57,8 @@ nonisolated struct ToolPackageDependencyStore: Sendable {
     var clearPendingRequest: @Sendable (_ packageRootURL: URL) throws -> Void
     var allowed: @Sendable (_ packageRootURL: URL) -> [ToolPackageDependencyRequest]
     var setAllowed: @Sendable (_ packageRootURL: URL, _ dependencies: [ToolPackageDependencyRequest]) throws -> Void
+    var rejected: @Sendable (_ packageRootURL: URL) -> [ToolPackageDependencyRequest]
+    var setRejected: @Sendable (_ packageRootURL: URL, _ dependencies: [ToolPackageDependencyRequest]) throws -> Void
 
     static let live = ToolPackageDependencyStore(
         pendingRequest: { packageRootURL in
@@ -79,6 +81,21 @@ nonisolated struct ToolPackageDependencyStore: Sendable {
         setAllowed: { packageRootURL, dependencies in
             let url = ToolPackageLayout.packageMetadataDirectoryURL(for: packageRootURL)
                 .appendingPathComponent("allowed-dependencies.json")
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try JSONEncoder().encode(dependencies).write(to: url, options: .atomic)
+        },
+        rejected: { packageRootURL in
+            let url = ToolPackageLayout.packageMetadataDirectoryURL(for: packageRootURL)
+                .appendingPathComponent("rejected-dependencies.json")
+            guard let data = try? Data(contentsOf: url) else { return [] }
+            return (try? JSONDecoder().decode([ToolPackageDependencyRequest].self, from: data)) ?? []
+        },
+        setRejected: { packageRootURL, dependencies in
+            let url = ToolPackageLayout.packageMetadataDirectoryURL(for: packageRootURL)
+                .appendingPathComponent("rejected-dependencies.json")
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true

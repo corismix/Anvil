@@ -93,8 +93,14 @@ struct ToolPackageMaterializer: Sendable {
         try fileClient.createDirectory(layout.packageMetadataDirectoryURL)
     }
 
-    nonisolated func writePackageManifest(_ layout: ToolPackageLayout) throws {
-        try fileClient.writeString(layout.packageManifestContent(), layout.packageManifestURL)
+    nonisolated func writePackageManifest(
+        _ layout: ToolPackageLayout,
+        dependencies: [ToolPackageDependencyRequest] = []
+    ) throws {
+        try fileClient.writeString(
+            layout.packageManifestContent(dependencies: dependencies),
+            layout.packageManifestURL
+        )
     }
 
     nonisolated func writeAppEntry(

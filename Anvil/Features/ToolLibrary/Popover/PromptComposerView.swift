@@ -13,6 +13,7 @@ struct PromptComposerView: View {
     @Binding var isExpanded: Bool
     @Binding var sandboxEnabled: Bool
     @Binding var appKindPreference: ToolAppKindPreference
+    @Binding var projectMode: ToolProjectMode
     @Binding var sandboxPermissions: GeneratedAppSandboxPermissions
     @Binding var resourcePermissions: GeneratedAppResourcePermissions
     @Binding var codingAgentPreference: ToolCodingAgentPreference
@@ -262,6 +263,15 @@ struct PromptComposerView: View {
                 ForEach(ToolAppKindPreference.allCases, id: \.self) { preference in
                     Text(preference.displayName)
                         .tag(preference)
+                }
+            }
+
+            if codingAgentPreference == .codex || codingAgentPreference == .custom {
+                Picker("App Mode", selection: $projectMode) {
+                    Text("Tiny App")
+                        .tag(ToolProjectMode.tiny)
+                    Text("Project")
+                        .tag(ToolProjectMode.project)
                 }
             }
 
@@ -650,6 +660,7 @@ private struct PromptComposerPreview: View {
             isExpanded: $isExpanded,
             sandboxEnabled: .constant(!isEditing),
             appKindPreference: .constant(isEditing ? .menuBar : .automatic),
+            projectMode: .constant(.tiny),
             sandboxPermissions: .constant(.default),
             resourcePermissions: .constant(
                 isEditing ? GeneratedAppResourcePermissions([.camera]) : .none

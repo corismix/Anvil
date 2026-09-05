@@ -24,7 +24,8 @@ struct SingleFileToolGenerationRuntime {
         planningPolicy: ToolGenerationPlanningPolicy? = nil,
         imageGenerationProvider: ToolImageGenerationProvider = .disabled,
         attachments: [ToolPromptAttachment] = [],
-        lifecycle: ToolGenerationLifecycle = .noop
+        lifecycle: ToolGenerationLifecycle = .noop,
+        projectMode: ToolProjectMode = .tiny
     ) async throws -> ToolGenerationResult {
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedPrompt.isEmpty else {
@@ -64,7 +65,8 @@ struct SingleFileToolGenerationRuntime {
             planningPolicy: planningPolicy,
             imageGenerationProvider: imageGenerationProvider,
             attachments: attachments,
-            lifecycle: lifecycle
+            lifecycle: lifecycle,
+            projectMode: projectMode
         )
     }
 
@@ -108,7 +110,8 @@ struct SingleFileToolGenerationRuntime {
         placeholderRootURL: URL,
         prompt: String,
         settings: ToolGenerationSettings,
-        lifecycle: ToolGenerationLifecycle
+        lifecycle: ToolGenerationLifecycle,
+        projectMode: ToolProjectMode = .tiny
     ) async throws -> CreateToolSetup {
         let displayName = metadata.displayName
         let resolvedSettings = settings.withMenuBarSystemImage(metadata.menuBarSystemImage)
@@ -124,6 +127,9 @@ struct SingleFileToolGenerationRuntime {
             displayName: displayName,
             settings: resolvedSettings
         )
+        if projectMode == .project {
+            try context.projectModeStore.setMode(packageRootURL, .project)
+        }
         do {
             try await lifecycle.prepareCreatedTool(
                 ToolGenerationPreparedTool(
@@ -195,7 +201,8 @@ struct SingleFileToolGenerationRuntime {
         planningPolicy: ToolGenerationPlanningPolicy,
         imageGenerationProvider: ToolImageGenerationProvider,
         attachments: [ToolPromptAttachment],
-        lifecycle: ToolGenerationLifecycle
+        lifecycle: ToolGenerationLifecycle,
+        projectMode: ToolProjectMode = .tiny
     ) async throws -> ToolGenerationResult {
         let startingPhase = existingTool?.generationPhase ?? .initializing
         let setup: CreateToolSetup
@@ -234,7 +241,8 @@ struct SingleFileToolGenerationRuntime {
                 placeholderRootURL: placeholderRootURL,
                 prompt: prompt,
                 settings: resolvedSettings,
-                lifecycle: lifecycle
+                lifecycle: lifecycle,
+                projectMode: projectMode
             )
         }
 
@@ -779,8 +787,9 @@ struct SingleFileToolGenerationRuntime {
             """
         )
         let protectedFileBaselines = try codingAgentProtectedFileBaselines(layout: layout)
+        let projectMode = context.projectModeStore.mode(layout.packageRootURL) == .project
 
-        let request = CodexAgentRequest(
+        var request = CodexAgentRequest(
             packageRootURL: layout.packageRootURL,
             executableName: layout.executableName,
             displayName: displayName,
@@ -796,6 +805,7 @@ struct SingleFileToolGenerationRuntime {
         ) { event in
             await Self.handleCodexAgentEvent(event, lifecycle: lifecycle)
         }
+        request.projectMode = projectMode
 
         do {
             let result: CodexAgentResult
@@ -809,7 +819,8 @@ struct SingleFileToolGenerationRuntime {
             try Task.checkCancellation()
             try validateCodingAgentProtectedFiles(
                 layout: layout,
-                baselines: protectedFileBaselines
+                baselines: protectedFileBaselines,
+                projectMode: projectMode
             )
             try await verifyCodingAgentGeneratedSource(
                 layout: layout,
@@ -844,6 +855,71 @@ struct SingleFileToolGenerationRuntime {
         settings: ToolGenerationSettings,
         lifecycle: ToolGenerationLifecycle
     ) async throws {
+        try await runWorkspaceAgent(
+            displayName: displayName,
+            layout: layout,
+            contentViewPath: contentViewPath,
+            userPrompt: userPrompt,
+            settings: settings,
+            lifecycle: lifecycle
+        )
+        try await suspendForDependencyApprovalIfNeeded(layout: layout, lifecycle: lifecycle)
+    }
+
+    /// Project mode only: when the agent requested Package.swift
+    /// dependencies the user has not allowed yet, park the generation at
+    /// the packaging phase and stop. Approving the request and continuing
+    /// resumes straight into the build.
+    private func suspendForDependencyApprovalIfNeeded(
+        layout: ToolPackageLayout,
+        lifecycle: ToolGenerationLifecycle
+    ) async throws {
+        guard context.projectModeStore.mode(layout.packageRootURL) == .project else {
+            return
+        }
+        let requested = dependencyStore.pendingRequest(layout.packageRootURL)
+        guard !requested.isEmpty else { return }
+        let allowed = Set(dependencyStore.allowed(layout.packageRootURL))
+        guard requested.contains(where: { !allowed.contains($0) }) else {
+            return
+        }
+        try await lifecycle.updatePhase(.generating, .packaging, nil)
+        AgentDiagnosticsLog.append(
+            """
+            Generation paused for dependency approval.
+            packageRoot: \(layout.packageRootURL.path)
+            requests: \(requested.map { "\($0.product) (\($0.package))" }.joined(separator: ", "))
+            """
+        )
+        throw ToolGenerationError.dependencyApprovalPending
+    }
+
+    private var dependencyStore: ToolPackageDependencyStore {
+        .live
+    }
+
+    private func runWorkspaceAgent(
+        displayName: String,
+        layout: ToolPackageLayout,
+        contentViewPath: String,
+        userPrompt: String,
+        settings: ToolGenerationSettings,
+        lifecycle: ToolGenerationLifecycle
+    ) async throws {
+        var userPrompt = userPrompt
+        if context.projectModeStore.mode(layout.packageRootURL) == .project {
+            let rejected = dependencyStore.rejected(layout.packageRootURL)
+            if !rejected.isEmpty {
+                let list = rejected
+                    .map { "\($0.product) (\($0.package))" }
+                    .joined(separator: ", ")
+                userPrompt += """
+
+                    The user reviewed and rejected these package dependency requests: \(list).
+                    Do not use them or request them again; revise the app to work without them.
+                    """
+            }
+        }
         switch context.pipelineConfiguration.codingAgent {
         case .codex:
             try await generateWithCodexAgent(
@@ -880,13 +956,15 @@ struct SingleFileToolGenerationRuntime {
             throw InferenceStoreError.missingCustomCodingAgent
         }
         let attachments = try context.attachmentStorage.currentRun(layout)
+        let projectMode = context.projectModeStore.mode(layout.packageRootURL) == .project
         let prompt = CustomCodingAgentPrompt.compose(
             userPrompt: userPrompt,
             displayName: displayName,
             executableName: layout.executableName,
             appKind: settings.appKind,
             sandboxEnabled: settings.sandboxEnabled,
-            attachments: attachments
+            attachments: attachments,
+            projectMode: projectMode
         )
         try await lifecycle.updatePhase(.generating, .generatingSource, nil)
         let protectedFileBaselines = try codingAgentProtectedFileBaselines(layout: layout)
@@ -909,7 +987,11 @@ struct SingleFileToolGenerationRuntime {
                 }
             )
             try Task.checkCancellation()
-            try validateCodingAgentProtectedFiles(layout: layout, baselines: protectedFileBaselines)
+            try validateCodingAgentProtectedFiles(
+                layout: layout,
+                baselines: protectedFileBaselines,
+                projectMode: projectMode
+            )
             try await verifyCodingAgentGeneratedSource(
                 layout: layout,
                 contentViewPath: contentViewPath,
@@ -923,7 +1005,8 @@ struct SingleFileToolGenerationRuntime {
             do {
                 try validateCodingAgentProtectedFiles(
                     layout: layout,
-                    baselines: protectedFileBaselines
+                    baselines: protectedFileBaselines,
+                    projectMode: projectMode
                 )
             } catch CodingAgentError.protectedFileChanged(_) {
                 // The validator restored all protected files; preserve the runner's failure.
@@ -984,7 +1067,8 @@ struct SingleFileToolGenerationRuntime {
 
     private func validateCodingAgentProtectedFiles(
         layout: ToolPackageLayout,
-        baselines: [String: String]
+        baselines: [String: String],
+        projectMode: Bool = false
     ) throws {
         var changedBaselinePaths: [String] = []
         for path in baselines.keys.sorted() {
@@ -995,13 +1079,17 @@ struct SingleFileToolGenerationRuntime {
             }
         }
 
+        // Project mode lets the agent own every Swift file under Sources/
+        // except the Anvil-owned app entry (still protected via baselines).
         let allowedSwiftPaths: Set<String> = [
             layout.appEntrySourcePath,
             layout.contentViewSourcePath,
         ]
-        let disallowedSwiftPaths = try swiftSourcePaths(in: layout)
-            .filter { !allowedSwiftPaths.contains($0) }
-            .sorted()
+        let disallowedSwiftPaths = projectMode
+            ? []
+            : try swiftSourcePaths(in: layout)
+                .filter { !allowedSwiftPaths.contains($0) }
+                .sorted()
 
         guard let violation = (changedBaselinePaths + disallowedSwiftPaths).first else {
             return

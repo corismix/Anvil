@@ -153,6 +153,7 @@ struct ToolGenerationRuntimeDependencies {
     let promptRefinementClient: ToolPromptRefinementClient
     let versionBackupClient: ToolVersionBackupClient
     let gitClient: ToolGitClient
+    let projectModeStore: ToolProjectModeStore
     let packageMaterializer: ToolPackageMaterializer
     let attachmentStorage: ToolPromptAttachmentStorage
     let codexAgentClient: CodexAgentClient
@@ -169,6 +170,7 @@ struct ToolGenerationRuntimeDependencies {
         promptRefinementClient: ToolPromptRefinementClient = .disabled(),
         versionBackupClient: ToolVersionBackupClient,
         gitClient: ToolGitClient = .live,
+        projectModeStore: ToolProjectModeStore = .live,
         packageMaterializer: ToolPackageMaterializer? = nil,
         attachmentStorage: ToolPromptAttachmentStorage = .live,
         codexAgentClient: CodexAgentClient = .unconfigured,
@@ -184,6 +186,7 @@ struct ToolGenerationRuntimeDependencies {
         self.promptRefinementClient = promptRefinementClient
         self.versionBackupClient = versionBackupClient
         self.gitClient = gitClient
+        self.projectModeStore = projectModeStore
         self.packageMaterializer = packageMaterializer ?? ToolPackageMaterializer(fileClient: fileClient)
         self.attachmentStorage = attachmentStorage
         self.codexAgentClient = codexAgentClient
@@ -241,6 +244,7 @@ struct ToolGenerationRuntimeContext {
     let promptRefinementEnabled: Bool
     let versionBackupClient: ToolVersionBackupClient
     let gitClient: ToolGitClient
+    let projectModeStore: ToolProjectModeStore
     let packageMaterializer: ToolPackageMaterializer
     let attachmentStorage: ToolPromptAttachmentStorage
     let codexAgentClient: CodexAgentClient
@@ -291,6 +295,7 @@ struct ToolGenerationRuntimeContext {
         self.promptRefinementEnabled = languageModelContext.promptRefinementEnabled
         self.versionBackupClient = dependencies.versionBackupClient
         self.gitClient = dependencies.gitClient
+        self.projectModeStore = dependencies.projectModeStore
         self.packageMaterializer = dependencies.packageMaterializer
         self.attachmentStorage = dependencies.attachmentStorage
         self.codexAgentClient = dependencies.codexAgentClient
@@ -439,6 +444,7 @@ enum ToolGenerationError: LocalizedError, Equatable {
     case invalidRepairPatch
     case noRepairPatchCandidate
     case stoppedToSaveTokens(String)
+    case dependencyApprovalPending
 
     var errorDescription: String? {
         switch self {
@@ -452,12 +458,14 @@ enum ToolGenerationError: LocalizedError, Equatable {
             return "No deterministic repair patch was available."
         case .stoppedToSaveTokens(let message):
             return message
+        case .dependencyApprovalPending:
+            return "The app is waiting for you to review a package dependency request."
         }
     }
 
     var isResumableStop: Bool {
         switch self {
-        case .stoppedToSaveTokens:
+        case .stoppedToSaveTokens, .dependencyApprovalPending:
             return true
         case .emptyPrompt, .compileFailed, .invalidRepairPatch, .noRepairPatchCandidate:
             return false
