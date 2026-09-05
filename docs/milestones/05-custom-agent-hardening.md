@@ -1,6 +1,6 @@
 # Milestone 5 - Custom-agent execution hardening
 
-Status: plan skeleton. Full spec is written here before code starts.
+Status: spec complete, implementation in progress.
 
 ## Goal
 
@@ -10,26 +10,72 @@ interpolated `zsh -ilc` command strings.
 ## Current state
 
 `CustomCodingAgentClient` builds a shell command by string substitution
-(`{prompt}` etc.) and runs `/bin/zsh -ilc <command>`. That inherits the
-user's interactive shell environment (slow, flaky, unpredictable) and makes
-quoting/injection the user's problem.
+(`{{prompt}}`) and runs `/bin/zsh -ilc <command>`. That inherits the
+user's interactive shell environment (slow, flaky, unpredictable) and
+makes quoting/injection the user's problem. Native adapter entries
+(milestone 4) already launch structured; this milestone brings the same
+guarantee to user-defined custom agents.
 
-## Shape
+## Design
 
-- Custom agent definition becomes: executable path, argument template list,
-  optional env map, working-directory rule, prompt delivery (argv vs stdin
-  vs temp file), timeout.
-- No login shell by default; explicit opt-in if an agent genuinely needs
-  shell evaluation.
-- Prompt delivery via stdin or a temp file by default (no argv length or
-  quoting hazards).
-- Migration: existing saved custom agents (name + command string) are
-  parsed into the structured form where possible; anything unparseable is
-  flagged in settings with a one-tap "keep legacy shell mode" fallback.
-- Validation: test-run button with captured stdout/stderr and exit status.
+### Structured launch definition
 
-## Open questions for the spec pass
+`CustomCodingAgent` gains an optional `structuredLaunch`
+(`StructuredAgentLaunch`, Codable, additive optional so existing
+UserDefaults records decode untouched - no SwiftData involvement; agents
+are preferences JSON):
 
-- Persisted shape change -> new SwiftData schema version + migration.
-- Do the OpenCode/Claude Code presets become structured agents
-  automatically? (Leaning: yes, they ship as built-in structured defs.)
+- `executable`: absolute path, or a bare name resolved against PATH plus
+  the common install dirs (same lookup the native adapters use).
+- `arguments`: ordered argument template. The token `{{prompt}}` as a
+  whole argument is replaced by the prompt as a single argv element -
+  no quoting, no length hazards beyond exec limits; when the template
+  has no token, the prompt goes to stdin.
+- `environment`: extra KEY=VALUE entries merged over a minimal inherited
+  environment (PATH, HOME, LANG, USER, TMPDIR), not the whole
+  interactive-shell environment.
+- `timeoutSeconds`: 0 means no timeout; anything else kills the process
+  group after the deadline with a clear error.
+
+When `structuredLaunch` is set, `command` and `promptDelivery` are
+ignored at run time (kept for reference and downgrade).
+
+### No shell by default
+
+Structured launches never touch a shell. The legacy `zsh -ilc` path
+remains only for agents that have not been converted, and the editor
+says so.
+
+### Migration
+
+No data migration on launch. The editor offers "Convert to structured
+launch" for legacy agents: a conservative parser tokenizes the command
+(whitespace + simple single/double quotes) and only succeeds when the
+command contains no shell metacharacters (`|`, `;`, `&`, `>`, `<`, `$`,
+backtick, glob) other than the `{{prompt}}` placeholder. Parseable
+commands prefill the structured fields for review; anything else shows
+why it cannot be converted and stays legacy.
+
+### Validation
+
+Existing rules plus: executable required and resolvable (bare name must
+be found), argument template must contain `{{prompt}}` at most once, env
+keys non-empty and well-formed. The test-run button exercises exactly
+the launch the user configured.
+
+## Tests
+
+- Conservative shell parse: clean commands, quoted segments, and
+  rejection of pipes/redirects/expansion.
+- Argument template resolution: `{{prompt}}` whole-arg replacement,
+  stdin fallback when no token, metacharacters in the prompt never
+  re-parsed.
+- Environment merge: overrides win, minimal base preserved.
+- Validation errors for unresolvable executables and bad env entries.
+- Timeout enforcement path via a stubbed runner clock (no real process
+  spawns in tests).
+
+## Verification
+
+Green CI run on main (`mac.yml`) with the new tests, then this file is
+marked complete.
