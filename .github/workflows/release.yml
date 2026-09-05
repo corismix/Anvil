@@ -38,11 +38,16 @@ jobs:
           --version "${GITHUB_REF_NAME#v}"
           --build-number "${{ github.run_number }}"
 
-      - name: Zip app
+      - name: Create DMG
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          ditto -c -k --keepParent dist/release-arm64/Anvil.app "dist/Anvil-${VERSION}-macos-arm64.zip"
-          shasum -a 256 "dist/Anvil-${VERSION}-macos-arm64.zip" | tee dist/Anvil-${VERSION}-macos-arm64.zip.sha256
+          DMG="dist/Anvil-${VERSION}-macos-arm64.dmg"
+          rm -rf dist/dmg-staging
+          mkdir -p dist/dmg-staging
+          cp -R dist/release-arm64/Anvil.app dist/dmg-staging/
+          ln -s /Applications dist/dmg-staging/Applications
+          hdiutil create -volname "Anvil" -srcfolder dist/dmg-staging -ov -format UDZO "$DMG"
+          shasum -a 256 "$DMG" | tee "${DMG}.sha256"
 
       - name: Publish GitHub Release
         env:
@@ -54,7 +59,7 @@ jobs:
 
           ## Install
 
-          1. Download and unzip, then move Anvil.app to /Applications.
+          1. Download and open the DMG, then drag Anvil to Applications.
 
           ## Important: unsigned build
 
@@ -64,10 +69,10 @@ jobs:
           - Right-click Anvil.app, choose Open, then Open again, or
           - Run: xattr -dr com.apple.quarantine /Applications/Anvil.app
 
-          The zip's SHA-256 is attached alongside for verification.
+          The DMG's SHA-256 is attached alongside for verification.
           NOTES
           gh release create "$GITHUB_REF_NAME" \
-            "dist/Anvil-${VERSION}-macos-arm64.zip" \
-            "dist/Anvil-${VERSION}-macos-arm64.zip.sha256" \
+            "dist/Anvil-${VERSION}-macos-arm64.dmg" \
+            "dist/Anvil-${VERSION}-macos-arm64.dmg.sha256" \
             --title "Anvil ${VERSION}" \
             --notes-file release-notes.md
