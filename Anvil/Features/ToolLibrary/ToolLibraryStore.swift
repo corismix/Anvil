@@ -70,6 +70,11 @@ final class ToolLibraryStore {
     /// Post-build permission advisories from the last successful build, keyed by tool.
     /// In-memory only: advisory, never persisted.
     private(set) var permissionAdvisories: [UUID: [ToolPermissionAdvisory]] = [:]
+
+    /// In-memory warning shown when a generation fell back because the
+    /// selected provider failed. Set via the lifecycle's reportWarning;
+    /// cleared when a new generation starts and when one succeeds.
+    private(set) var generationWarnings: [UUID: String] = [:]
     private(set) var selectedToolID: UUID?
     private(set) var selectedToolName: String?
     private var restorableToolIDs = Set<UUID>()
@@ -277,6 +282,10 @@ final class ToolLibraryStore {
 
     func permissionAdvisorySummary(for tool: Tool) -> String? {
         ToolPermissionAdvisor.summary(permissionAdvisories[tool.id] ?? [])
+    }
+
+    func generationWarning(for tool: Tool) -> String? {
+        generationWarnings[tool.id]
     }
 
     /// One-way, explicit promotion from Tiny App to Project mode.
@@ -719,7 +728,10 @@ final class ToolLibraryStore {
                 await handleGenerationCancellation(activeTool, in: modelContext)
             } else if isResumableGenerationStop(error) {
                 if let activeTool {
-                    let message = generationErrorMessage(for: error)
+                    let message = generationErrorMessage(
+                        for: error,
+                        providerName: selectedGenerationProviderName(from: inferenceStore)
+                    )
                     markToolStopped(activeTool, summary: message)
                     try? modelContext.save()
                     if shouldNotifyGenerationTerminalEvent {
@@ -732,14 +744,27 @@ final class ToolLibraryStore {
                     modelContext.rollback()
                 }
                 if (error as? ToolGenerationError) != .dependencyApprovalPending {
-                    presentGenerationError(error)
+                    presentGenerationError(
+                        error,
+                        providerName: selectedGenerationProviderName(from: inferenceStore)
+                    )
                 }
             } else {
                 if let activeTool {
-                    markToolFailed(activeTool, error: error)
+                    markToolFailed(
+                        activeTool,
+                        error: error,
+                        providerName: selectedGenerationProviderName(from: inferenceStore)
+                    )
                     try? modelContext.save()
                     if shouldNotifyGenerationTerminalEvent {
-                        await notifyGenerationStopped(activeTool, detail: generationErrorMessage(for: error))
+                        await notifyGenerationStopped(
+                            activeTool,
+                            detail: generationErrorMessage(
+                                for: error,
+                                providerName: selectedGenerationProviderName(from: inferenceStore)
+                            )
+                        )
                     }
                 } else {
                     modelContext.rollback()
@@ -753,7 +778,10 @@ final class ToolLibraryStore {
                     \(AgentDiagnosticsLog.renderError(error))
                     """
                 )
-                presentGenerationError(error)
+                presentGenerationError(
+                    error,
+                    providerName: selectedGenerationProviderName(from: inferenceStore)
+                )
             }
         }
 
@@ -764,16 +792,40 @@ final class ToolLibraryStore {
         generationStopWasRequested = false
     }
 
-    private func presentGenerationError(_ error: Error) {
-        presentError(generationErrorMessage(for: error))
+    private func presentGenerationError(_ error: Error, providerName: String? = nil) {
+        presentError(generationErrorMessage(for: error, providerName: providerName))
     }
 
-    private func generationErrorMessage(for error: Error) -> String {
+    private func generationErrorMessage(for error: Error, providerName: String? = nil) -> String {
+        if let providerMessage = ProviderErrorClassifier.userFacingMessage(
+            for: error,
+            providerName: providerName
+        ) {
+            return providerMessage
+        }
+
         if isGenericAnyLanguageModelError(error) {
             return "There was an error generating your app. Please try again."
         }
 
         return error.localizedDescription
+    }
+
+    /// Display name of the provider behind the currently selected model, so
+    /// provider HTTP failures read "OpenAI Codex (ChatGPT) is erroring..."
+    /// instead of a raw URLSessionError.
+    private func selectedGenerationProviderName(from inferenceStore: InferenceStore) -> String? {
+        guard let model = inferenceStore.selectedModel else { return nil }
+        if model.isOpenAICodexModel {
+            return "OpenAI Codex (ChatGPT)"
+        }
+        guard let provider = inferenceStore.providers.first(where: {
+            $0.identifier == model.providerIdentifier
+        }) else {
+            return nil
+        }
+        let name = provider.displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? ProviderCatalog.descriptor(for: provider.kind)?.displayName : name
     }
 
     private func isGenericAnyLanguageModelError(_ error: Error) -> Bool {
@@ -1051,7 +1103,10 @@ final class ToolLibraryStore {
             if AnvilErrorPresentation.isCancellation(error) || Task.isCancelled {
                 await handleGenerationCancellation(tool, in: modelContext)
             } else if isResumableGenerationStop(error) {
-                let message = generationErrorMessage(for: error)
+                let message = generationErrorMessage(
+                    for: error,
+                    providerName: selectedGenerationProviderName(from: inferenceStore)
+                )
                 markToolStopped(tool, summary: message)
                 try? modelContext.save()
                 if shouldNotifyGenerationTerminalEvent {
@@ -1060,15 +1115,31 @@ final class ToolLibraryStore {
                 if (error as? ToolGenerationError) == .dependencyApprovalPending {
                     dependencyApprovalToolID = tool.id
                 } else {
-                    presentGenerationError(error)
+                    presentGenerationError(
+                        error,
+                        providerName: selectedGenerationProviderName(from: inferenceStore)
+                    )
                 }
             } else {
-                markToolFailed(tool, error: error)
+                markToolFailed(
+                    tool,
+                    error: error,
+                    providerName: selectedGenerationProviderName(from: inferenceStore)
+                )
                 try? modelContext.save()
                 if shouldNotifyGenerationTerminalEvent {
-                    await notifyGenerationStopped(tool, detail: generationErrorMessage(for: error))
+                    await notifyGenerationStopped(
+                        tool,
+                        detail: generationErrorMessage(
+                            for: error,
+                            providerName: selectedGenerationProviderName(from: inferenceStore)
+                        )
+                    )
                 }
-                presentGenerationError(error)
+                presentGenerationError(
+                    error,
+                    providerName: selectedGenerationProviderName(from: inferenceStore)
+                )
             }
         }
 
@@ -1182,6 +1253,14 @@ final class ToolLibraryStore {
                     tool.updatedAt = .now
                     try modelContext.save()
                 }
+            },
+            reportWarning: { message in
+                await MainActor.run {
+                    guard let tool = activeTool.value else { return }
+                    if self.generationWarnings[tool.id] == nil {
+                        self.generationWarnings[tool.id] = message
+                    }
+                }
             }
         )
     }
@@ -1198,6 +1277,7 @@ final class ToolLibraryStore {
         tool.pendingPrompt = prompt
         tool.generationErrorSummary = nil
         tool.generationRepairErrorCount = nil
+        generationWarnings[tool.id] = nil
         tool.updatedAt = .now
     }
 
@@ -1208,9 +1288,11 @@ final class ToolLibraryStore {
         tool.updatedAt = .now
     }
 
-    private func markToolFailed(_ tool: Tool, error: Error) {
+    private func markToolFailed(_ tool: Tool, error: Error, providerName: String? = nil) {
         tool.generationState = .failed
-        tool.generationErrorSummary = Self.shortSummary(for: generationErrorMessage(for: error))
+        tool.generationErrorSummary = Self.shortSummary(
+            for: generationErrorMessage(for: error, providerName: providerName)
+        )
         tool.generationRepairErrorCount = nil
         tool.updatedAt = .now
     }
@@ -1260,6 +1342,7 @@ final class ToolLibraryStore {
         tool.packageRootPath = result.packageRootURL.path
         clearPendingGeneration(on: tool)
         updatePermissionAdvisory(for: tool, settings: result.settings)
+        generationWarnings[tool.id] = nil
     }
 
     /// Advisory permission scan: compares the built source against the granted

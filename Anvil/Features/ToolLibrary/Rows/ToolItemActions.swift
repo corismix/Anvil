@@ -14,6 +14,7 @@ struct ToolItemPresentationState {
     let activeCodingAgent: ToolCodingAgent?
     let canShowAgentOutput: Bool
     var permissionAdvisory: String? = nil
+    var generationWarning: String? = nil
 
     var isBusy: Bool {
         isLaunching || isExporting || isRebuilding || isRestoring || isEditingDetails

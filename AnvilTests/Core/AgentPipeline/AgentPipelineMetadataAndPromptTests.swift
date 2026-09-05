@@ -828,3 +828,58 @@ private struct StreamOnlyPromptRefinementLanguageModel: LanguageModel {
         )
     }
 }
+
+extension AgentPipelineTests {
+    @MainActor
+    @Test
+    func creationPlanningWarnsWhenPrimaryModelFails() async throws {
+        let warnings = PlanningWarningRecorder()
+        let plan = await ToolGenerationPlanningClient.live(fallbackLanguageModel: nil)
+            .planCreation(
+                userPrompt: "A paint app",
+                invoker: Self.makeInvoker(
+                    languageModel: StubAgentLanguageModel { _, _ in
+                        throw FakeAgentError.expected
+                    }
+                ),
+                onWarning: { message in
+                    await warnings.record(message)
+                }
+            )
+
+        #expect(!plan.displayName.isEmpty)
+        #expect(
+            await warnings.messages == ["The selected model failed - using fallback planning."]
+        )
+    }
+
+    @MainActor
+    @Test
+    func promptRefinementWarnsAndFallsBackToOriginalPrompt() async throws {
+        let warnings = PlanningWarningRecorder()
+        let refined = await ToolPromptRefinementClient.live().refinePrompt(
+            userPrompt: "A paint app",
+            invoker: Self.makeInvoker(
+                languageModel: StubAgentLanguageModel { _, _ in
+                    throw FakeAgentError.expected
+                }
+            ),
+            onWarning: { message in
+                await warnings.record(message)
+            }
+        )
+
+        #expect(refined == nil)
+        #expect(
+            await warnings.messages == ["The selected model failed - using your original prompt."]
+        )
+    }
+}
+
+private actor PlanningWarningRecorder {
+    private(set) var messages: [String] = []
+
+    func record(_ message: String) {
+        messages.append(message)
+    }
+}

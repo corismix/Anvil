@@ -231,7 +231,10 @@ struct SingleFileToolGenerationRuntime {
             let metadata = await context.planningClient.planCreation(
                 userPrompt: prompt,
                 imageGenerationProvider: imageGenerationProvider,
-                invoker: context.languageModelInvoker
+                invoker: context.languageModelInvoker,
+                onWarning: { message in
+                    try? await lifecycle.reportWarning(message)
+                }
             )
             try Task.checkCancellation()
             let resolvedSettings = Self.resolveCreationSettings(
@@ -430,7 +433,10 @@ struct SingleFileToolGenerationRuntime {
             invoker: context.languageModelInvoker,
             appKind: appKind,
             sandboxEnabled: sandboxEnabled,
-            codingAgent: context.pipelineConfiguration.codingAgent
+            codingAgent: context.pipelineConfiguration.codingAgent,
+            onWarning: { message in
+                try? await lifecycle.reportWarning(message)
+            }
         )
         try Task.checkCancellation()
         guard let refinedPrompt else {

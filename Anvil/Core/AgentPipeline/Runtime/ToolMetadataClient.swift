@@ -128,6 +128,7 @@ struct ToolCreationPlanningRequest: Sendable {
     let userPrompt: String
     let imageGenerationProvider: ToolImageGenerationProvider
     let invoker: ToolLanguageModelInvoker
+    var onWarning: (@Sendable (String) async -> Void)? = nil
 }
 
 struct ToolEditPlanningRequest: Sendable {
@@ -179,13 +180,15 @@ struct ToolGenerationPlanningClient: Sendable {
     func planCreation(
         userPrompt: String,
         imageGenerationProvider: ToolImageGenerationProvider = .imagePlayground,
-        invoker: ToolLanguageModelInvoker
+        invoker: ToolLanguageModelInvoker,
+        onWarning: (@Sendable (String) async -> Void)? = nil
     ) async -> ToolCreationPlan {
         await planCreationForRequest(
             ToolCreationPlanningRequest(
                 userPrompt: userPrompt,
                 imageGenerationProvider: imageGenerationProvider,
-                invoker: invoker
+                invoker: invoker,
+                onWarning: onWarning
             )
         )
     }
@@ -236,6 +239,13 @@ struct ToolGenerationPlanningClient: Sendable {
                         error:
                         \(AgentDiagnosticsLog.renderError(primaryError, limit: 500))
                         """
+                    )
+
+                    await request.onWarning?(
+                        ProviderErrorClassifier.fallbackWarning(
+                            for: primaryError,
+                            fallback: "using fallback planning"
+                        )
                     )
 
                     if let fallbackLanguageModel, fallbackLanguageModel.isAvailable {
@@ -541,6 +551,7 @@ struct ToolPromptRefinementRequest: Sendable {
     let sandboxEnabled: Bool
     let codingAgent: ToolCodingAgent
     let invoker: ToolLanguageModelInvoker
+    var onWarning: (@Sendable (String) async -> Void)? = nil
 }
 
 struct ToolPromptRefinementClient: Sendable {
@@ -566,7 +577,8 @@ struct ToolPromptRefinementClient: Sendable {
         invoker: ToolLanguageModelInvoker,
         appKind: ToolAppKind = .window,
         sandboxEnabled: Bool = true,
-        codingAgent: ToolCodingAgent = .anvilSpark
+        codingAgent: ToolCodingAgent = .anvilSpark,
+        onWarning: (@Sendable (String) async -> Void)? = nil
     ) async -> String? {
         await refinePromptForRequest(
             ToolPromptRefinementRequest(
@@ -574,7 +586,8 @@ struct ToolPromptRefinementClient: Sendable {
                 appKind: appKind,
                 sandboxEnabled: sandboxEnabled,
                 codingAgent: codingAgent,
-                invoker: invoker
+                invoker: invoker,
+                onWarning: onWarning
             )
         )
     }
@@ -630,6 +643,12 @@ struct ToolPromptRefinementClient: Sendable {
                         error:
                         \(AgentDiagnosticsLog.renderError(error, limit: 500))
                         """
+                    )
+                    await request.onWarning?(
+                        ProviderErrorClassifier.fallbackWarning(
+                            for: error,
+                            fallback: "using your original prompt"
+                        )
                     )
                     return nil
                 }

@@ -39,6 +39,7 @@ struct ToolGenerationLifecycle {
         _ phase: ToolGenerationPhase?,
         _ errorSummary: String?
     ) async throws -> Void
+    nonisolated(unsafe) let reportWarning: (_ message: String) async throws -> Void
 
     nonisolated init(
         preservesCreatedPackageOnCancellation: Bool = false,
@@ -53,7 +54,8 @@ struct ToolGenerationLifecycle {
             _ state: ToolGenerationState,
             _ phase: ToolGenerationPhase?,
             _ errorSummary: String?
-        ) async throws -> Void = { _, _, _ in }
+        ) async throws -> Void = { _, _, _ in },
+        reportWarning: @escaping (_ message: String) async throws -> Void = { _ in }
     ) {
         self.preservesCreatedPackageOnCancellation = preservesCreatedPackageOnCancellation
         self.prepareCreatedTool = prepareCreatedTool
@@ -61,6 +63,7 @@ struct ToolGenerationLifecycle {
         self.updatePendingPrompt = updatePendingPrompt
         self.updateRepairErrorCount = updateRepairErrorCount
         self.updatePhase = updatePhase
+        self.reportWarning = reportWarning
     }
 
     nonisolated static var noop: ToolGenerationLifecycle {

@@ -36,6 +36,12 @@ struct ToolRowView: View {
                                 .foregroundStyle(.orange)
                                 .lineLimit(1)
                         }
+                        if let generationWarning = state.generationWarning {
+                            Text(generationWarning)
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                                .lineLimit(1)
+                        }
                     }
 
                     Spacer()
