@@ -34,5 +34,17 @@ jobs:
       - name: Build app (debug, ad hoc signed)
         run: script/build.sh
 
+      - name: Zip app
+        run: |
+          mkdir -p dist/artifacts
+          ditto -c -k --keepParent dist/debug/Anvil.app dist/artifacts/Anvil-macos-arm64.zip
+
+      - name: Upload app artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Anvil-macOS-arm64
+          path: dist/artifacts/Anvil-macos-arm64.zip
+          retention-days: 14
+
       - name: Run tests
         run: script/test.sh
