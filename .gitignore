@@ -28,3 +28,6 @@ script/*.local.sh
 
 anvil-backend/
 .codex/environments/environment.toml
+
+# CodeGraph index (opencode plugin)
+.codegraph/
