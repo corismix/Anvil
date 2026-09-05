@@ -428,7 +428,7 @@ struct SwiftPackageProcessClient: Sendable {
             line: lineNumber,
             column: columnNumber,
             severity: severity,
-            message: String(line[messageRange])
+            message: message
         )
     }
 
