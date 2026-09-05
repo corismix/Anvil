@@ -23,7 +23,7 @@ jobs:
           swift --version
 
       - name: Cache SwiftPM and Codex vendor build artifacts
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .build
           key: macos-26-build-${{ github.repository }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}

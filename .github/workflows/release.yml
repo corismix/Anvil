@@ -1,0 +1,73 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish (macOS 26, Apple Silicon)
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Select newest Xcode
+        run: |
+          sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+          xcodebuild -version
+          swift --version
+
+      - name: Cache SwiftPM and Codex vendor build artifacts
+        uses: actions/cache@v6
+        with:
+          path: .build
+          key: macos-26-build-${{ github.repository }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-${{ github.sha }}
+          restore-keys: |
+            macos-26-build-${{ github.repository }}-${{ hashFiles('Package.swift', 'Package.resolved') }}-
+            macos-26-build-${{ github.repository }}-
+
+      - name: Build app (release, ad hoc signed)
+        run: >-
+          script/build.sh --release --arch arm64 --sign-identity -
+          --version "${GITHUB_REF_NAME#v}"
+          --build-number "${{ github.run_number }}"
+
+      - name: Zip app
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ditto -c -k --keepParent dist/release-arm64/Anvil.app "dist/Anvil-${VERSION}-macos-arm64.zip"
+          shasum -a 256 "dist/Anvil-${VERSION}-macos-arm64.zip" | tee dist/Anvil-${VERSION}-macos-arm64.zip.sha256
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cat > release-notes.md <<'NOTES'
+          macOS 26 or later, Apple Silicon.
+
+          ## Install
+
+          1. Download and unzip, then move Anvil.app to /Applications.
+
+          ## Important: unsigned build
+
+          This build is ad hoc signed (no Developer ID certificate, not
+          notarized), so macOS Gatekeeper blocks the first launch. Either:
+
+          - Right-click Anvil.app, choose Open, then Open again, or
+          - Run: xattr -dr com.apple.quarantine /Applications/Anvil.app
+
+          The zip's SHA-256 is attached alongside for verification.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/Anvil-${VERSION}-macos-arm64.zip" \
+            "dist/Anvil-${VERSION}-macos-arm64.zip.sha256" \
+            --title "Anvil ${VERSION}" \
+            --notes-file release-notes.md
