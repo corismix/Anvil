@@ -12,8 +12,8 @@ struct ToolItemPresentationState {
     let canRevert: Bool
     var isProjectMode: Bool = false
     let activeCodingAgent: ToolCodingAgent?
-    var permissionAdvisory: String? = nil
     let canShowAgentOutput: Bool
+    var permissionAdvisory: String? = nil
 
     var isBusy: Bool {
         isLaunching || isExporting || isRebuilding || isRestoring || isEditingDetails
