@@ -1,6 +1,6 @@
 # Milestone 4 - First-class agent adapters
 
-Status: spec complete, implementation in progress.
+Status: complete. Verified green on main via CI run 33933079703 (https://github.com/corismix/Anvil/actions/runs/33933079703) at commit b69da77. Design note: implemented as adapter-backed custom-agent entries (structured direct launch) rather than new ToolCodingAgent cases; OpenCode session resume was descoped (no reliably parseable session id in its output), and flag probing was descoped in favor of clear unavailable-adapter errors.
 
 ## Goal
 
