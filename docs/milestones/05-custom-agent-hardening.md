@@ -1,6 +1,6 @@
 # Milestone 5 - Custom-agent execution hardening
 
-Status: spec complete, implementation in progress.
+Status: complete. Verified green on main via CI run 33933495793 (https://github.com/corismix/Anvil/actions/runs/33933495793) at commit d8e3665. Temp-file prompt delivery from the plan skeleton was descoped: argv token and stdin cover the delivery modes without a temp-file lifecycle to manage.
 
 ## Goal
 
