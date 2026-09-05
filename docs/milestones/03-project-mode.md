@@ -1,6 +1,6 @@
 # Milestone 3 - Project mode + controlled dependencies
 
-Status: spec complete, implementation in progress.
+Status: complete. Verified green on main via CI run 33932563940 (https://github.com/corismix/Anvil/actions/runs/33932563940) at commit be01dc0.
 
 ## Goal
 
