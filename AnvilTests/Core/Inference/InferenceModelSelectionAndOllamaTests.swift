@@ -126,15 +126,19 @@ extension InferenceTests {
 
         provider.openAICompatibleAPIVariant = .chatCompletions
         let chatModel = try #require(
-            try await client.makeLanguageModel(model, provider) as? OpenAILanguageModel
+            try await client.makeLanguageModel(model, provider)
+                as? StructuredOutputFallbackLanguageModel
         )
-        #expect(chatModel.apiVariant == .chatCompletions)
+        let chatBase = try #require(chatModel.base as? OpenAILanguageModel)
+        #expect(chatBase.apiVariant == .chatCompletions)
 
         provider.openAICompatibleAPIVariant = .responses
         let responsesModel = try #require(
-            try await client.makeLanguageModel(model, provider) as? OpenAILanguageModel
+            try await client.makeLanguageModel(model, provider)
+                as? StructuredOutputFallbackLanguageModel
         )
-        #expect(responsesModel.apiVariant == .responses)
+        let responsesBase = try #require(responsesModel.base as? OpenAILanguageModel)
+        #expect(responsesBase.apiVariant == .responses)
     }
 
     @MainActor

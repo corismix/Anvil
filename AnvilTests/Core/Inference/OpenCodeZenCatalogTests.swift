@@ -201,7 +201,8 @@ struct OpenCodeZenRoutingTests {
             modelIdentifier: "glm-5.2"
         )
         let languageModel = try await makeClient().makeLanguageModel(model, provider)
-        let openAIModel = try #require(languageModel as? OpenAILanguageModel)
+        let wrapper = try #require(languageModel as? StructuredOutputFallbackLanguageModel)
+        let openAIModel = try #require(wrapper.base as? OpenAILanguageModel)
         #expect(openAIModel.apiVariant == .chatCompletions)
         #expect(openAIModel.model == "glm-5.2")
     }
@@ -215,7 +216,8 @@ struct OpenCodeZenRoutingTests {
         )
         provider.openAICompatibleAPIVariant = .chatCompletions
         let languageModel = try await makeClient().makeLanguageModel(model, provider)
-        let openAIModel = try #require(languageModel as? OpenAILanguageModel)
+        let wrapper = try #require(languageModel as? StructuredOutputFallbackLanguageModel)
+        let openAIModel = try #require(wrapper.base as? OpenAILanguageModel)
         #expect(openAIModel.apiVariant == .responses)
     }
 
@@ -227,7 +229,8 @@ struct OpenCodeZenRoutingTests {
             modelIdentifier: "qwen3.7-max"
         )
         let languageModel = try await makeClient().makeLanguageModel(model, provider)
-        let anthropicModel = try #require(languageModel as? AnthropicLanguageModel)
+        let wrapper = try #require(languageModel as? StructuredOutputFallbackLanguageModel)
+        let anthropicModel = try #require(wrapper.base as? AnthropicLanguageModel)
         #expect(anthropicModel.model == "qwen3.7-max")
         #expect(anthropicModel.baseURL.absoluteString == "https://opencode.ai/zen/go/")
     }
@@ -241,7 +244,8 @@ struct OpenCodeZenRoutingTests {
         )
         provider.openAICompatibleAPIVariant = .responses
         let languageModel = try await makeClient().makeLanguageModel(model, provider)
-        let openAIModel = try #require(languageModel as? OpenAILanguageModel)
+        let wrapper = try #require(languageModel as? StructuredOutputFallbackLanguageModel)
+        let openAIModel = try #require(wrapper.base as? OpenAILanguageModel)
         #expect(openAIModel.apiVariant == .responses)
     }
 }
